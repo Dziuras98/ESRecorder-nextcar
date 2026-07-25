@@ -1,0 +1,66 @@
+name: Headless recorder core CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-contracts:
+    name: Core and BeamNG contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build platform-neutral core
+        run: dotnet build src/ESRecorder.Core/ESRecorder.Core.csproj --configuration Release
+
+      - name: Build optional BeamNG adapter
+        run: dotnet build src/ESRecorder.BeamNG/ESRecorder.BeamNG.csproj --configuration Release
+
+      - name: Run headless contract tests
+        run: dotnet run --project tests/ESRecorder.Core.Tests/ESRecorder.Core.Tests.csproj --configuration Release
+
+  windows-host:
+    name: Windows native, CLI and legacy WPF build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build legacy WPF application
+        run: dotnet build ESRecorder.csproj --configuration Release --runtime win-x64
+
+      - name: Build headless CLI
+        run: dotnet build src/ESRecorder.Cli/ESRecorder.Cli.csproj --configuration Release --runtime win-x64
+
+      - name: Run platform-neutral contracts on Windows
+        run: dotnet run --project tests/ESRecorder.Core.Tests/ESRecorder.Core.Tests.csproj --configuration Release
+
+      - name: Upload headless CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: esrecorder-headless-cli-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 14
+          path: src/ESRecorder.Cli/bin/Release/net8.0-windows/win-x64/**
