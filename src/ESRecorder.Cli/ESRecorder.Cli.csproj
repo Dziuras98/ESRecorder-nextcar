@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ESRecorder.Core\ESRecorder.Core.csproj" />
+    <ProjectReference Include="..\ESRecorder.Native\ESRecorder.Native.csproj" />
+    <ProjectReference Include="..\ESRecorder.BeamNG\ESRecorder.BeamNG.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\es\es\**" Link="es\es\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\es\assets\**" Link="es\assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\es\esrecord-lib.dll" Link="es\esrecord-lib.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
