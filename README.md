@@ -1,28 +1,50 @@
+# ESRecorder-nextcar
 
-# ES-Recorder
-[engine-sim](https://github.com/ange-yaghi/engine-sim) recording application with BeamNG.drive converting.
-<br>
-### This uses engine-sim 0.1.11a!
-Newer engines are might not be compatible. I only added the convolution parameter to the engine declaration.
+Fork of ES-Recorder used as the offline engine-audio renderer source for nEXTcAR.
 
-# Converting engines
-The conversion process is pretty basic and mostly to make modding easier, not to make a mod for you.
-You still need some modding knowledge to put the files in the correct directories and to mod the JBeam.
+The repository preserves the original WPF/BeamNG application while adding a
+separate headless architecture:
 
-# Compiling
-You need Visual Studio with C# and C++ packages, CMake and git to build this application.
-## Clone both repositories (to different directories)
-This application uses another repository for the engine-sim project. You need to compile both.
+- `src/ESRecorder.Core` — platform-neutral recording domain and orchestration;
+- `src/ESRecorder.Native` — Windows adapter for `esrecord-lib.dll`;
+- `src/ESRecorder.Cli` — non-interactive recording host;
+- `src/ESRecorder.BeamNG` — optional BeamNG exporter;
+- `tests/ESRecorder.Core.Tests` — executable contract tests.
 
-```sh
+See `docs/HEADLESS_ARCHITECTURE.md` for commands and architectural boundaries.
 
-git clone https://github.com/DDev247/ESRecorder.git
-git clone --recurse-submodules --branch esrecorder https://github.com/DDev247/engine-sim.git
+## Compatibility baseline
 
+The imported native library and original application currently use engine-sim
+0.1.11a. Compatibility with the nEXTcAR engine-sim baseline is a separate,
+explicit porting task.
+
+## Build the legacy WPF application
+
+```powershell
+dotnet build ESRecorder.csproj --configuration Release --runtime win-x64
 ```
 
-## Build engine-sim
-Open the engine-sim folder in Visual Studio and compile esrecord-lib.dll in Release.
+## Build the headless host
 
-## Copy library and build ESRecorder
-Copy the resulting dll file into `ESRecorder/es/esrecord-lib.dll` and build the project in Release mode.
+```powershell
+dotnet build src/ESRecorder.Cli/ESRecorder.Cli.csproj \
+  --configuration Release \
+  --runtime win-x64
+```
+
+## Run platform-neutral contract tests
+
+```sh
+dotnet run \
+  --project tests/ESRecorder.Core.Tests/ESRecorder.Core.Tests.csproj \
+  --configuration Release
+```
+
+## Original upstream purpose
+
+The original ES-Recorder is an engine-sim recording application with BeamNG.drive
+conversion. The conversion process is intended to assist BeamNG modding and does
+not create a complete mod automatically.
+
+Original upstream: `DDev247/ESRecorder`.
