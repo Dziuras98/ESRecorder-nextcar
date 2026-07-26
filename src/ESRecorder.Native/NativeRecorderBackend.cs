@@ -5,11 +5,21 @@ namespace ESRecorder.Native;
 
 public sealed class NativeRecorderBackend : IRecorderBackend
 {
+    private const int SourceBuiltAbiVersion = 2000;
+
     public int NativeLibraryVersion => NativeMethods.ESRecord_GetVersion();
 
     public void Initialise(int instanceId)
     {
         EnsureWindows();
+
+        // ABI 1010 initialises the simulator inside ESRecord_Compile and returns
+        // false when ESRecord_Initialise is called before an engine is compiled.
+        // ABI 2000 deliberately changes this export into an explicit slot reset,
+        // matching the headless orchestration sequence Initialise -> Compile.
+        if (NativeLibraryVersion < SourceBuiltAbiVersion)
+            return;
+
         if (!NativeMethods.ESRecord_Initialise(instanceId))
             throw new InvalidOperationException($"Failed to initialise recorder instance {instanceId}.");
     }
