@@ -5,11 +5,21 @@ namespace ESRecorder.Native;
 
 public sealed class NativeRecorderBackend : IRecorderBackend
 {
+    private const int SourceBuiltAbiVersion = 2000;
+
     public int NativeLibraryVersion => NativeMethods.ESRecord_GetVersion();
 
     public void Initialise(int instanceId)
     {
         EnsureWindows();
+
+        // ABI 1010 initialises the simulator inside ESRecord_Compile and returns
+        // false when ESRecord_Initialise is called before an engine is compiled.
+        // ABI 2000 deliberately changes this export into an explicit slot reset,
+        // matching the headless orchestration sequence Initialise -> Compile.
+        if (NativeLibraryVersion < SourceBuiltAbiVersion)
+            return;
+
         if (!NativeMethods.ESRecord_Initialise(instanceId))
             throw new InvalidOperationException($"Failed to initialise recorder instance {instanceId}.");
     }
@@ -27,7 +37,7 @@ public sealed class NativeRecorderBackend : IRecorderBackend
     }
 
     public EngineMetadata GetEngineMetadata(int instanceId) => new(
-        NativeMethods.ESRecord_Engine_GetName(instanceId) ?? string.Empty,
+        GetEngineName(instanceId),
         NativeMethods.ESRecord_Engine_GetRedline(instanceId),
         NativeMethods.ESRecord_Engine_GetDisplacement(instanceId),
         NativeLibraryVersion);
@@ -76,6 +86,14 @@ public sealed class NativeRecorderBackend : IRecorderBackend
             (RecorderState)state,
             progress,
             NativeMethods.ESRecord_GetSimState(instanceId));
+    }
+
+    private static string GetEngineName(int instanceId)
+    {
+        var pointer = NativeMethods.ESRecord_Engine_GetName(instanceId);
+        return pointer == IntPtr.Zero
+            ? string.Empty
+            : Marshal.PtrToStringAnsi(pointer) ?? string.Empty;
     }
 
     private static void EnsureWindows()
@@ -138,9 +156,8 @@ public sealed class NativeRecorderBackend : IRecorderBackend
         [DllImport(Library)]
         public static extern NativeRecorderState ESRecord_GetState(int instanceId, out int progress);
 
-        [DllImport(Library, CharSet = CharSet.Ansi)]
-        [return: MarshalAs(UnmanagedType.LPStr)]
-        public static extern string? ESRecord_Engine_GetName(int instanceId);
+        [DllImport(Library)]
+        public static extern IntPtr ESRecord_Engine_GetName(int instanceId);
 
         [DllImport(Library)]
         public static extern float ESRecord_Engine_GetRedline(int instanceId);
