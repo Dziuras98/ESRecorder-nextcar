@@ -15,7 +15,7 @@ The fork also owns a platform-neutral `event-source-v1` acoustic renderer. This 
 the extension point for powertrains that cannot be represented honestly by the
 legacy engine-sim 0.1.11a DLL. Native source families currently include Wankel, multi-crank, generic two-stroke,
 opposed-piston, radial/cam-ring, axial-piston, free-piston, electric-machine and
-multi-source/composite, explicit fixed-firing banked piston, split-single/twingle two-stroke and non-Wankel rotary-combustion topologies.
+multi-source/composite, explicit fixed-firing banked piston, split-single/twingle two-stroke and non-Wankel rotary-combustion and thermal-fluid/external-combustion topologies.
 
 See `docs/HEADLESS_ARCHITECTURE.md` for commands and architectural boundaries.
 
@@ -139,3 +139,14 @@ render-rotary-combustion
 This command represents rotary combustion mechanisms from explicit working
 element and power-event counts. It is separate from `render-wankel` and must
 not be used as an implicit Wankel approximation.
+
+
+## Thermal-fluid / external-combustion sources
+
+```text
+render-thermal-fluid
+```
+
+This authoring primitive covers reciprocating Stirling/Ericsson/steam machines,
+rotary expanders, turbines and wave rotors. Compound systems should compose
+thermal-fluid and combustion child graphs through `render-composite`.
