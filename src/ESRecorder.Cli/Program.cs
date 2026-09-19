@@ -54,6 +54,8 @@ internal static class Program
                     return RenderSplitSingle(options, cancellation.Token);
                 case "render-rotary-combustion":
                     return RenderRotaryCombustion(options, cancellation.Token);
+                case "render-thermal-fluid":
+                    return RenderThermalFluid(options, cancellation.Token);
                 case "render-radial-cam-ring":
                     return RenderRadialCamRing(options, cancellation.Token);
                 case "render-axial-piston":
@@ -276,6 +278,26 @@ internal static class Program
                 "power-events-per-output-revolution"),
             ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 100, 100000),
             Get(options, "combustion", "petrol"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderThermalFluid(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = ThermalFluidMachineSourceFactory.Create(
+            Get(options, "name", "thermal-fluid-machine"),
+            GetRequired(options, "machine-class"),
+            GetRequired(options, "mechanism"),
+            ParseRangeInt(GetRequired(options, "elements"), "elements", 1, 128),
+            ParseNonNegativeDouble(
+                Get(options, "pressure-events-per-reference-revolution", "0"),
+                "pressure-events-per-reference-revolution"),
+            ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 50, 200000),
+            ParseRangeInt(GetRequired(options, "blade-lobe-order"), "blade-lobe-order", 1, 256),
+            Get(options, "working-fluid", "generic"),
+            Get(options, "thermal-response", "thermal-lag"));
 
         return RenderEventBank(source, options, cancellationToken);
     }
@@ -591,6 +613,17 @@ internal static class Program
         return result;
     }
 
+    private static double ParseNonNegativeDouble(string value, string name)
+    {
+        if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result) ||
+            !double.IsFinite(result) ||
+            result < 0.0)
+        {
+            throw new ArgumentException($"--{name} must be a non-negative finite number.");
+        }
+        return result;
+    }
+
     private static double ParsePositiveDouble(string value, string name)
     {
         if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result) ||
@@ -716,6 +749,22 @@ internal static class Program
                 --max-rpm 7500
                 --output recordings/gerotor-7
                 --rpm 1200:48000,7000:48000
+                --throttle 0,100
+                --length 5
+
+            Render a thermal-fluid / external-combustion source:
+              ESRecorder.Cli render-thermal-fluid
+                --name steam-turbine
+                --machine-class turbine
+                --mechanism "two-stage steam turbine"
+                --elements 2
+                --pressure-events-per-reference-revolution 0
+                --max-rpm 18000
+                --blade-lobe-order 32
+                --working-fluid steam
+                --thermal-response "slow-thermal"
+                --output recordings/steam-turbine
+                --rpm 3000:48000,16000:48000
                 --throttle 0,100
                 --length 5
 
