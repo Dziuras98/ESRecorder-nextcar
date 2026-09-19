@@ -52,6 +52,8 @@ internal static class Program
                     return RenderFixedFiringPiston(options, cancellation.Token);
                 case "render-split-single":
                     return RenderSplitSingle(options, cancellation.Token);
+                case "render-rotary-combustion":
+                    return RenderRotaryCombustion(options, cancellation.Token);
                 case "render-radial-cam-ring":
                     return RenderRadialCamRing(options, cancellation.Token);
                 case "render-axial-piston":
@@ -256,6 +258,23 @@ internal static class Program
                 Get(options, "transfer-piston-phase-degrees", "15"),
                 "transfer-piston-phase-degrees"),
             Get(options, "layout", "split-single"),
+            Get(options, "combustion", "petrol"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderRotaryCombustion(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = RotaryCombustionSourceFactory.Create(
+            Get(options, "name", "rotary-combustion"),
+            GetRequired(options, "mechanism"),
+            ParseRangeInt(GetRequired(options, "elements"), "elements", 1, 128),
+            ParsePositiveDouble(
+                GetRequired(options, "power-events-per-output-revolution"),
+                "power-events-per-output-revolution"),
+            ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 100, 100000),
             Get(options, "combustion", "petrol"));
 
         return RenderEventBank(source, options, cancellationToken);
@@ -685,6 +704,18 @@ internal static class Program
                 --layout V-split-single
                 --output recordings/split-single-six
                 --rpm 1500:48000,8000:48000
+                --throttle 0,100
+                --length 5
+
+            Render a non-Wankel rotary-combustion source:
+              ESRecorder.Cli render-rotary-combustion
+                --name gerotor-7
+                --mechanism "seven-lobe gerotor combustion"
+                --elements 7
+                --power-events-per-output-revolution 7
+                --max-rpm 7500
+                --output recordings/gerotor-7
+                --rpm 1200:48000,7000:48000
                 --throttle 0,100
                 --length 5
 
