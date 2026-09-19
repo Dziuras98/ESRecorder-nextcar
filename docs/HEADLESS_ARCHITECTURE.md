@@ -134,3 +134,18 @@ speed ratios and gains.
 
 These remain offline authoring abstractions. Their presence does not add an
 ESRecorder or event-renderer dependency to Unreal runtime code.
+
+
+## Explicit firing-order and split-single primitives
+
+The event backend includes a general fixed-firing piston source for one-crank
+engines with arbitrary cylinder count, bank assignment and ignition-angle
+tables. It is the common authoring representation for asymmetric banks,
+multi-bank fan layouts, VR/W engines and fixed crank/firing-order variants.
+
+Split-single/twingle two-strokes use a separate chamber-based primitive with two
+fixed-phase pistons per combustion chamber. The paired pistons affect mechanical
+layers but do not double combustion events.
+
+Single-crank OPOC remains a supported specialization of the opposed-piston
+factory by setting crankshaft count to one.
