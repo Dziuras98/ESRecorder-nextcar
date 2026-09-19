@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using ESRecorder.BeamNG;
 using ESRecorder.Core;
 using ESRecorder.Native;
@@ -7,6 +8,12 @@ namespace ESRecorder.Cli;
 
 internal static class Program
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = true
+    };
+
     private static async Task<int> Main(string[] args)
     {
         using var cancellation = new CancellationTokenSource();
@@ -25,12 +32,21 @@ internal static class Program
             }
 
             var options = ParseOptions(args.Skip(1).ToArray());
-            return args[0] switch
+            switch (args[0])
             {
-                "record" => await RecordAsync(options, cancellation.Token).ConfigureAwait(false),
-                "export-beamng" => await ExportBeamNgAsync(options, cancellation.Token).ConfigureAwait(false),
-                _ => throw new ArgumentException($"Unknown command: {args[0]}")
-            };
+                case "record":
+                    return await RecordAsync(options, cancellation.Token).ConfigureAwait(false);
+                case "export-beamng":
+                    return await ExportBeamNgAsync(options, cancellation.Token).ConfigureAwait(false);
+                case "capabilities":
+                    return PrintCapabilities();
+                case "render-wankel":
+                    return RenderWankel(options, cancellation.Token);
+                case "render-event-source":
+                    return RenderEventSource(options, cancellation.Token);
+                default:
+                    throw new ArgumentException($"Unknown command: {args[0]}");
+            }
         }
         catch (OperationCanceledException)
         {
@@ -117,6 +133,89 @@ internal static class Program
         return 0;
     }
 
+    private static int PrintCapabilities()
+    {
+        Console.WriteLine(JsonSerializer.Serialize(RecorderCapabilityCatalog.Create(), JsonOptions));
+        return 0;
+    }
+
+    private static int RenderWankel(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = WankelSourceFactory.Create(
+            Get(options, "name", "wankel"),
+            ParseRangeInt(GetRequired(options, "rotors"), "rotors", 1, 32),
+            ParsePositiveDouble(GetRequired(options, "displacement"), "displacement"),
+            ParseRangeInt(GetRequired(options, "redline"), "redline", 1000, 30000));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderEventSource(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = AcousticEventSourceSerializer.Read(
+            Path.GetFullPath(GetRequired(options, "source")));
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderEventBank(
+        AcousticEventSourceDefinition source,
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        source.Validate();
+        var output = Path.GetFullPath(Get(options, "output", "event-recordings"));
+        var rpmPoints = ParseRpmPoints(GetRequired(options, "rpm"));
+        var throttles = ParseIntegers(GetRequired(options, "throttle"), "throttle");
+        var length = ParseRangeInt(Get(options, "length", "5"), "length", 1, 120);
+        var outputStem = RecordingPlanBuilder.SanitizeFileName(Get(options, "name", source.Id));
+        var measurements = new List<EventRenderMeasurement>();
+
+        Directory.CreateDirectory(output);
+        AcousticEventSourceSerializer.Write(source, Path.Combine(output, "event-source.json"));
+
+        foreach (var rpmPoint in rpmPoints.OrderBy(static point => point.Rpm))
+        {
+            foreach (var throttle in throttles.OrderBy(static value => value))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var wav = Path.Combine(output, $"{outputStem}_{rpmPoint.Rpm}_{throttle}.wav");
+                var measurement = EventAudioRenderer.Render(
+                    source,
+                    new EventRenderRequest(
+                        wav,
+                        rpmPoint.Rpm,
+                        throttle,
+                        rpmPoint.Frequency,
+                        length));
+                measurements.Add(measurement);
+                Console.WriteLine(
+                    $"rendered {rpmPoint.Rpm} RPM / {throttle}% -> {Path.GetFileName(wav)} " +
+                    $"peak={measurement.PeakAbsolute:0.000} rms={measurement.RootMeanSquare:0.000}");
+            }
+        }
+
+        var reportPath = Path.Combine(output, "event-render-report.json");
+        File.WriteAllText(
+            reportPath,
+            JsonSerializer.Serialize(
+                new
+                {
+                    schema_version = 1,
+                    backend = "event-source-v1",
+                    source,
+                    measurements
+                },
+                JsonOptions) + Environment.NewLine);
+
+        Console.WriteLine($"Event source: {Path.Combine(output, "event-source.json")}");
+        Console.WriteLine($"Report: {reportPath}");
+        return 0;
+    }
+
     private static Dictionary<string, string> ParseOptions(string[] args)
     {
         var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -144,7 +243,7 @@ internal static class Program
                 throw new ArgumentException($"RPM point must use rpm:frequency syntax: {entry}");
             return new RpmPoint(
                 ParsePositiveInt(components[0], "rpm"),
-                ParsePositiveInt(components[1], "frequency"));
+                ParseRangeInt(components[1], "frequency", 8000, 192000));
         })
         .ToArray();
 
@@ -181,6 +280,17 @@ internal static class Program
         return result;
     }
 
+    private static double ParsePositiveDouble(string value, string name)
+    {
+        if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result) ||
+            !double.IsFinite(result) ||
+            result <= 0.0)
+        {
+            throw new ArgumentException($"--{name} must be a positive finite number.");
+        }
+        return result;
+    }
+
     private static float ParseFloat(string value, string name)
     {
         if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
@@ -194,26 +304,20 @@ internal static class Program
             """
             ESRecorder headless host
 
-            Record neutral sample-bank source data:
-              ESRecorder.Cli record \
-                --engine-script es/assets/main.mr \
-                --output recordings/example \
-                --name example \
-                --rpm 1000:44100,2000:44100,3000:44100 \
-                --throttle 0,50,100 \
-                --length 5 \
-                --warmup 1 \
-                --instances 4
+            Print machine-readable recorder capabilities:
+              ESRecorder.Cli capabilities
+
+            Render a native ESRecorder-nextcar Wankel source:
+              ESRecorder.Cli render-wankel                 --name four-rotor                 --rotors 4                 --displacement 2.6                 --redline 9500                 --output recordings/four-rotor                 --rpm 1500:44100,4500:44100,8500:44100                 --throttle 0,100                 --length 5
+
+            Render an arbitrary event-source-v1 definition:
+              ESRecorder.Cli render-event-source                 --source source.json                 --output recordings/custom                 --rpm 1500:44100,4500:44100                 --throttle 0,100                 --length 5
+
+            Record neutral sample-bank source data through the legacy engine-sim backend:
+              ESRecorder.Cli record                 --engine-script es/assets/main.mr                 --output recordings/example                 --name example                 --rpm 1000:44100,2000:44100,3000:44100                 --throttle 0,50,100                 --length 5                 --warmup 1                 --instances 4
 
             Export an existing neutral manifest to BeamNG files:
-              ESRecorder.Cli export-beamng \
-                --manifest recordings/example/recording-manifest.json \
-                --output exports/example \
-                --starter-event i4 \
-                --idle-rpm 800 \
-                --max-rpm 7500 \
-                --static-friction 12 \
-                --dynamic-friction 0.01
+              ESRecorder.Cli export-beamng                 --manifest recordings/example/recording-manifest.json                 --output exports/example                 --starter-event i4                 --idle-rpm 800                 --max-rpm 7500                 --static-friction 12                 --dynamic-friction 0.01
             """);
     }
 }
