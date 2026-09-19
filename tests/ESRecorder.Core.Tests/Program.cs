@@ -25,6 +25,7 @@ internal static class Program
             TestFixedFiringPistonTopology();
             TestSplitSingleTopology();
             TestSingleCrankOpocTopology();
+            TestNonWankelRotaryTopology();
             TestAcceptedFamilyRenderers();
             TestAdvancedTopologyRenderers();
             TestNewTopologyRenderers();
@@ -105,7 +106,8 @@ internal static class Program
             "electric-machine",
             "multi-source-composite",
             "fixed-firing-piston",
-            "split-single-two-stroke"
+            "split-single-two-stroke",
+            "rotary-combustion"
         })
         {
             AssertTrue(
@@ -116,7 +118,8 @@ internal static class Program
         {
             "explicit-ignition-angle-table",
             "cylinder-bank-assignment",
-            "paired-piston-phase-model"
+            "paired-piston-phase-model",
+            "non-wankel-rotary-combustion"
         })
         {
             AssertTrue(
@@ -421,6 +424,43 @@ internal static class Program
         AssertEqual(1, source.EventTrains.Length, "single-crank OPOC shared combustion train");
     }
 
+    private static void TestNonWankelRotaryTopology()
+    {
+        var articulated = RotaryCombustionSourceFactory.Create(
+            "articulated-four",
+            "articulated four-chamber rotary",
+            workingElementCount: 4,
+            powerEventsPerOutputRevolution: 4.0,
+            maxOutputRpm: 9500);
+
+        AssertEqual("rotary-combustion", articulated.Family, "non-Wankel rotary family");
+        AssertEqual(4, articulated.EventTrains[0].EventPhases.Length, "articulated rotary element count");
+        AssertEqual("4", articulated.Metadata["power_events_per_output_revolution"], "articulated rotary event rate");
+        AssertTrue(
+            !articulated.Metadata["mechanism"].Contains("Wankel", StringComparison.OrdinalIgnoreCase),
+            "articulated rotary is not labeled Wankel");
+
+        var gerotor = RotaryCombustionSourceFactory.Create(
+            "gerotor-seven",
+            "seven-lobe gerotor combustion",
+            workingElementCount: 7,
+            powerEventsPerOutputRevolution: 7.0,
+            maxOutputRpm: 7500);
+
+        AssertEqual("7", gerotor.Metadata["working_element_count"], "gerotor element count");
+        AssertNear(1.0, gerotor.EventTrains[0].ShaftRatio, 1e-9, "gerotor event train shaft ratio");
+
+        var toroidal = RotaryCombustionSourceFactory.Create(
+            "toroidal-eight",
+            "eight-piston toroidal opposed rotary combustion",
+            workingElementCount: 8,
+            powerEventsPerOutputRevolution: 8.0,
+            maxOutputRpm: 9000);
+
+        AssertEqual(8, toroidal.EventTrains[0].EventPhases.Length, "toroidal rotary event count");
+        AssertEqual("8", toroidal.Metadata["power_events_per_output_revolution"], "toroidal event rate");
+    }
+
     private static void TestAcceptedFamilyRenderers()
     {
         var root = Path.Combine(Path.GetTempPath(), $"esrecorder-accepted-family-tests-{Guid.NewGuid():N}");
@@ -467,7 +507,13 @@ internal static class Program
                     1,
                     0.0,
                     "petrol")
-            };
+,
+                RotaryCombustionSourceFactory.Create(
+                    "render-gerotor-seven",
+                    "seven-lobe gerotor combustion",
+                    7,
+                    7.0,
+                    7500)            };
 
             foreach (var source in sources)
             {
