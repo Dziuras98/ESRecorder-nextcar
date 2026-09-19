@@ -14,6 +14,10 @@ internal static class Program
             TestDuplicateThrottleRejected();
             TestCapabilityContract();
             TestNativeWankelEventModel();
+            TestMultiCrankTopology();
+            TestTwoStrokeTopology();
+            TestOpposedPistonTopology();
+            TestNewTopologyRenderers();
             TestEventSourceRoundTripAndRender();
             await TestCoordinatorAndArtifactsAsync().ConfigureAwait(false);
             Console.WriteLine("PASS: headless recorder core contract tests");
@@ -75,6 +79,15 @@ internal static class Program
             eventBackend.SourceFamilies.Contains("wankel", StringComparer.Ordinal),
             "event backend exposes Wankel");
         AssertTrue(
+            eventBackend.SourceFamilies.Contains("multi-crank", StringComparer.Ordinal),
+            "event backend exposes multi-crank");
+        AssertTrue(
+            eventBackend.SourceFamilies.Contains("two-stroke-piston", StringComparer.Ordinal),
+            "event backend exposes two-stroke piston");
+        AssertTrue(
+            eventBackend.SourceFamilies.Contains("opposed-piston", StringComparer.Ordinal),
+            "event backend exposes opposed-piston");
+        AssertTrue(
             capabilities.Guarantees.Contains("no-silent-topology-fallback", StringComparer.Ordinal),
             "capability contract forbids fallback");
     }
@@ -93,6 +106,125 @@ internal static class Program
             "4",
             source.Metadata["power_events_per_eccentric_shaft_revolution"],
             "Wankel power events metadata");
+    }
+
+    private static void TestMultiCrankTopology()
+    {
+        var source = MultiCrankSourceFactory.Create(
+            "test-h8",
+            new[]
+            {
+                new MultiCrankModuleSpec("upper", 2, 1.0, 0.0),
+                new MultiCrankModuleSpec("lower", 2, 1.0, 0.25)
+            },
+            redlineRpm: 7500,
+            family: "h-layout");
+
+        AssertEqual("h-layout", source.Family, "multi-crank family");
+        AssertEqual(2, source.EventTrains.Length, "multi-crank event train count");
+        AssertEqual(4, source.HarmonicLayers.Length, "multi-crank harmonic layer count");
+        AssertNear(0.0, source.EventTrains[0].EventPhases[0], 1e-9, "upper crank first phase");
+        AssertNear(0.25, source.EventTrains[1].EventPhases[0], 1e-9, "lower crank first phase");
+        AssertEqual("2", source.Metadata["module_count"], "multi-crank module metadata");
+        AssertEqual(
+            "4",
+            source.Metadata["effective_power_events_per_reference_revolution"],
+            "multi-crank effective event count");
+    }
+
+    private static void TestTwoStrokeTopology()
+    {
+        var source = TwoStrokePistonSourceFactory.Create(
+            "test-i3-2t",
+            3,
+            1.5,
+            8500,
+            "inline-3",
+            "uniflow");
+
+        AssertEqual("two-stroke-piston", source.Family, "two-stroke family");
+        AssertEqual(1, source.EventTrains.Length, "two-stroke event train count");
+        AssertEqual(3, source.EventTrains[0].EventPhases.Length, "two-stroke power event count");
+        AssertNear(0.0, source.EventTrains[0].EventPhases[0], 1e-9, "two-stroke phase 0");
+        AssertNear(1.0 / 3.0, source.EventTrains[0].EventPhases[1], 1e-9, "two-stroke phase 1");
+        AssertNear(2.0 / 3.0, source.EventTrains[0].EventPhases[2], 1e-9, "two-stroke phase 2");
+        AssertEqual(
+            "3",
+            source.Metadata["power_events_per_crankshaft_revolution"],
+            "two-stroke event metadata");
+        AssertEqual("uniflow", source.Metadata["scavenging"], "two-stroke scavenging metadata");
+    }
+
+    private static void TestOpposedPistonTopology()
+    {
+        var source = OpposedPistonSourceFactory.Create(
+            "test-op6",
+            chamberCount: 6,
+            displacementLitres: 3.6,
+            redlineRpm: 4500,
+            crankshaftCount: 2,
+            crankPhaseDegrees: 12.0,
+            combustionClass: "diesel");
+
+        AssertEqual("opposed-piston", source.Family, "opposed-piston family");
+        AssertEqual(1, source.EventTrains.Length, "opposed-piston combustion train count");
+        AssertEqual(6, source.EventTrains[0].EventPhases.Length, "opposed-piston combustion event count");
+        AssertEqual(5, source.HarmonicLayers.Length, "opposed-piston mechanical layer count");
+        AssertEqual("6", source.Metadata["chamber_count"], "opposed-piston chamber metadata");
+        AssertEqual("12", source.Metadata["piston_count"], "opposed-piston piston metadata");
+        AssertEqual("2", source.Metadata["crankshaft_count"], "opposed-piston crank metadata");
+        AssertEqual(
+            "6",
+            source.Metadata["power_events_per_output_revolution"],
+            "opposed-piston power event metadata");
+    }
+
+    private static void TestNewTopologyRenderers()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"esrecorder-topology-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var sources = new[]
+            {
+                MultiCrankSourceFactory.Create(
+                    "render-h8",
+                    new[]
+                    {
+                        new MultiCrankModuleSpec("upper", 2, 1.0, 0.0),
+                        new MultiCrankModuleSpec("lower", 2, 1.0, 0.25)
+                    },
+                    7500),
+                TwoStrokePistonSourceFactory.Create("render-2t", 4, 2.0, 8000, "inline-4", "loop"),
+                OpposedPistonSourceFactory.Create("render-op", 4, 2.4, 5000, 2, 10.0, "diesel")
+            };
+
+            foreach (var source in sources)
+            {
+                var output = Path.Combine(root, $"{source.Id}.wav");
+                var measurement = EventAudioRenderer.Render(
+                    source,
+                    new EventRenderRequest(
+                        output,
+                        Rpm: 3000,
+                        Throttle: 75,
+                        SampleRate: 8000,
+                        LengthSeconds: 1));
+
+                AssertTrue(File.Exists(output), $"{source.Id} render WAV exists");
+                AssertTrue(new FileInfo(output).Length > 44, $"{source.Id} render WAV contains PCM");
+                AssertTrue(measurement.PeakAbsolute > 0.01, $"{source.Id} render peak is non-zero");
+                AssertTrue(measurement.RootMeanSquare > 0.001, $"{source.Id} render RMS is non-zero");
+                AssertTrue(double.IsFinite(measurement.PeakAbsolute), $"{source.Id} render peak is finite");
+                AssertTrue(double.IsFinite(measurement.RootMeanSquare), $"{source.Id} render RMS is finite");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void TestEventSourceRoundTripAndRender()
