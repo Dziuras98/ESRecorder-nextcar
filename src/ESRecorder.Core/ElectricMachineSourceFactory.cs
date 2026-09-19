@@ -30,9 +30,13 @@ public static class ElectricMachineSourceFactory
         var layers = new List<HarmonicLayerDefinition>(machineCount * 4);
         var gainScale = 1.0 / Math.Sqrt(machineCount);
 
+        const double GoldenAngleRadians = 2.39996322972865332;
         for (var machineIndex = 0; machineIndex < machineCount; machineIndex++)
         {
-            var phase = (2.0 * Math.PI * machineIndex) / machineCount;
+            // Separate physical machines must not be treated as phase-locked acoustic emitters.
+            // A deterministic golden-angle offset avoids artificial coherent cancellation while
+            // preserving repeatable output for identical authoring inputs.
+            var phase = machineIndex * GoldenAngleRadians;
             layers.Add(new HarmonicLayerDefinition
             {
                 Name = $"machine-{machineIndex + 1}-electrical-fundamental",
@@ -88,8 +92,9 @@ public static class ElectricMachineSourceFactory
                 ["slot_order"] = slotOrder.ToString(CultureInfo.InvariantCulture),
                 ["inverter_order"] = inverterOrder.ToString(CultureInfo.InvariantCulture),
                 ["max_rpm"] = maxRpm.ToString(CultureInfo.InvariantCulture),
+                ["acoustic_phase_policy"] = "deterministic_golden_angle_per_machine",
                 ["kinematic_note"] =
-                    "Electrical whine is represented with shaft-order harmonics derived from pole-pair count plus slot and inverter-related orders; no combustion event train is created."
+                    "Electrical whine is represented with shaft-order harmonics derived from pole-pair count plus slot and inverter-related orders; no combustion event train is created. Separate machines use deterministic non-coherent acoustic phase offsets to avoid artificial cancellation."
             }
         };
 
