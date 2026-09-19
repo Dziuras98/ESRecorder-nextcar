@@ -82,9 +82,9 @@ Current direct source families:
 - generic two-stroke piston engines through event-source-v1;
 - opposed-piston two-stroke engines through event-source-v1.
 
-Planned event-source families include radial/cam-ring, axial-piston, free-piston, electric-machine and multi-source composites.
+The event backend now directly supports all source-family primitives required by the current PR #193 concept catalog: radial/cam-ring, axial-piston, free-piston, electric-machine and multi-source composition are implemented in addition to the earlier families.
 
-A planned family is not considered supported until it has a topology factory, contract tests and render evidence. No generic fallback is permitted.
+A family is considered supported only when it has a topology factory, contract tests and render evidence. No generic fallback is permitted.
 
 
 ## Multi-crank v1
@@ -136,4 +136,82 @@ ESRecorder.Cli render-multi-crank --name h8 --modules "upper:2:0:1;lower:2:90:1"
 ESRecorder.Cli render-two-stroke --name v6-2t --cylinders 6 --displacement 2.0 --redline 12000 --layout V6 --scavenging loop --output recordings/v6-2t --rpm 2000:44100,11000:44100 --throttle 0,100 --length 5
 
 ESRecorder.Cli render-opposed-piston --name op6 --chambers 6 --displacement 3.6 --redline 4500 --cranks 2 --crank-phase-degrees 12 --combustion diesel --output recordings/op6 --rpm 1000:44100,4000:44100 --throttle 0,100 --length 5
+```
+
+
+## Radial and cam-ring v1
+
+`RadialCamRingSourceFactory` supports:
+
+- `radial-piston`;
+- `cam-ring`;
+- `dual-cam-ring`.
+
+The event graph explicitly supports combustion cycles spanning more than one
+output-shaft revolution. This matters for odd-cylinder four-stroke radials: a
+radial-7 source uses seven firing events over two crankshaft revolutions
+(`shaft_ratio = 0.5`), which is 3.5 power events per crankshaft revolution.
+The model does not invent an eighth cylinder or force a one-revolution repeat.
+
+Cam-ring variants retain cam-ring count and lobe-order mechanical layers.
+
+## Axial-piston v1
+
+`AxialPistonSourceFactory` represents axial piston count, combustion-cycle
+length and the mechanical conversion mechanism (for example a swashplate).
+Combustion events can span multiple output-shaft revolutions while mechanical
+orders remain referenced to the output shaft.
+
+## Free-piston v1
+
+`FreePistonSourceFactory` introduces no fictitious crankshaft. For this family,
+the renderer's numerical RPM input is interpreted as **oscillation cycles per
+minute**. Each module owns one combustion event train and independent
+linear/generator harmonic layers.
+
+The resulting source metadata records:
+
+- `reference_rate_unit = cycles_per_minute`;
+- module count;
+- equivalent displacement;
+- generator class;
+- maximum oscillation rate.
+
+## Electric-machine v1
+
+`ElectricMachineSourceFactory` is harmonic-only: it creates no combustion
+event train. Electrical fundamental order is derived from pole-pair count, with
+additional slot and inverter-related orders.
+
+Multiple physical machines use deterministic golden-angle acoustic phase
+offsets. They are deliberately not treated as phase-locked emitters; this
+prevents physically unrelated motors from cancelling to digital silence when
+their signals are summed.
+
+## Multi-source composite v1
+
+`CompositeSourceFactory` merges two to sixteen existing event-source graphs.
+Every component keeps its own:
+
+- source family;
+- event trains and harmonic layers;
+- speed ratio relative to the composite reference speed;
+- gain;
+- phase offset.
+
+Child source master gain is folded into the component gain. Component event and
+harmonic shaft ratios are scaled independently, which permits ICE + e-axle,
+range-extender, multi-engine and other hybrid authoring graphs without
+flattening their identities.
+
+CLI composite syntax uses semicolon-separated components:
+
+```text
+name|source-path[|speed-ratio[|gain[|phase-offset-revolutions]]]
+```
+
+Example:
+
+```text
+ESRecorder.Cli render-composite --name rotary-hybrid --sources "ice|rotary/event-source.json|1|1|0;front-motor|motor/event-source.json|2.5|0.55|0.125" --output recordings/rotary-hybrid --rpm 1500:44100,8500:44100 --throttle 0,100 --length 5
 ```
