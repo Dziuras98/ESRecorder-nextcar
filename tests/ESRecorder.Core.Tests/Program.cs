@@ -17,6 +17,12 @@ internal static class Program
             TestMultiCrankTopology();
             TestTwoStrokeTopology();
             TestOpposedPistonTopology();
+            TestRadialAndCamRingTopology();
+            TestAxialPistonTopology();
+            TestFreePistonTopology();
+            TestElectricMachineTopology();
+            TestCompositeTopology();
+            TestAdvancedTopologyRenderers();
             TestNewTopologyRenderers();
             TestEventSourceRoundTripAndRender();
             await TestCoordinatorAndArtifactsAsync().ConfigureAwait(false);
@@ -87,6 +93,19 @@ internal static class Program
         AssertTrue(
             eventBackend.SourceFamilies.Contains("opposed-piston", StringComparer.Ordinal),
             "event backend exposes opposed-piston");
+        foreach (var family in new[]
+        {
+            "radial-cam-ring",
+            "axial-piston",
+            "free-piston",
+            "electric-machine",
+            "multi-source-composite"
+        })
+        {
+            AssertTrue(
+                eventBackend.SourceFamilies.Contains(family, StringComparer.Ordinal),
+                $"event backend exposes {family}");
+        }
         AssertTrue(
             capabilities.Guarantees.Contains("no-silent-topology-fallback", StringComparer.Ordinal),
             "capability contract forbids fallback");
@@ -177,6 +196,161 @@ internal static class Program
             "6",
             source.Metadata["power_events_per_output_revolution"],
             "opposed-piston power event metadata");
+    }
+
+    private static void TestRadialAndCamRingTopology()
+    {
+        var radial = RadialCamRingSourceFactory.Create(
+            "radial-7",
+            "radial-piston",
+            workingElementCount: 7,
+            displacementLitres: 7.0,
+            maxRpm: 3200,
+            cycleRevolutions: 2);
+
+        AssertEqual("radial-cam-ring", radial.Family, "radial family");
+        AssertEqual(7, radial.EventTrains[0].EventPhases.Length, "radial event count over cycle");
+        AssertNear(0.5, radial.EventTrains[0].ShaftRatio, 1e-9, "radial event-cycle shaft ratio");
+        AssertEqual("2", radial.Metadata["event_cycle_revolutions"], "radial cycle metadata");
+        AssertEqual("3.5", radial.Metadata["power_events_per_output_revolution"], "radial power-event rate");
+
+        var dualCam = RadialCamRingSourceFactory.Create(
+            "dcr16",
+            "dual-cam-ring",
+            workingElementCount: 16,
+            displacementLitres: 4.8,
+            maxRpm: 7000,
+            cycleRevolutions: 1,
+            camRingCount: 2,
+            camLobesPerRing: 4);
+
+        AssertEqual(16, dualCam.EventTrains[0].EventPhases.Length, "dual-cam-ring event count");
+        AssertEqual("2", dualCam.Metadata["cam_ring_count"], "dual-cam-ring count metadata");
+        AssertEqual(3, dualCam.HarmonicLayers.Length, "dual-cam-ring mechanical layer count");
+    }
+
+    private static void TestAxialPistonTopology()
+    {
+        var source = AxialPistonSourceFactory.Create(
+            "axial-12",
+            pistonCount: 12,
+            displacementLitres: 2.0,
+            maxRpm: 9500,
+            cycleRevolutions: 2,
+            mechanism: "swashplate");
+
+        AssertEqual("axial-piston", source.Family, "axial-piston family");
+        AssertEqual(12, source.EventTrains[0].EventPhases.Length, "axial-piston event count over cycle");
+        AssertNear(0.5, source.EventTrains[0].ShaftRatio, 1e-9, "axial-piston event-cycle shaft ratio");
+        AssertEqual("6", source.Metadata["power_events_per_output_revolution"], "axial-piston power-event rate");
+        AssertEqual("swashplate", source.Metadata["mechanism"], "axial-piston mechanism metadata");
+    }
+
+    private static void TestFreePistonTopology()
+    {
+        var source = FreePistonSourceFactory.Create(
+            "free-piston-4",
+            moduleCount: 4,
+            displacementEquivalentLitres: 4.0,
+            maxCyclesPerMinute: 3600,
+            generatorClass: "linear-generator",
+            combustionClass: "diesel");
+
+        AssertEqual("free-piston", source.Family, "free-piston family");
+        AssertEqual(4, source.EventTrains.Length, "free-piston module event-train count");
+        AssertEqual("cycles_per_minute", source.Metadata["reference_rate_unit"], "free-piston reference-rate unit");
+        AssertEqual("4", source.Metadata["combustion_events_per_reference_cycle"], "free-piston event metadata");
+    }
+
+    private static void TestElectricMachineTopology()
+    {
+        var source = ElectricMachineSourceFactory.Create(
+            "electric-dual",
+            polePairs: 4,
+            maxRpm: 18000,
+            machineCount: 2,
+            machineType: "permanent-magnet",
+            slotOrder: 24,
+            inverterOrder: 48);
+
+        AssertEqual("electric-machine", source.Family, "electric-machine family");
+        AssertEqual(0, source.EventTrains.Length, "electric-machine has no combustion trains");
+        AssertEqual(8, source.HarmonicLayers.Length, "electric-machine harmonic layer count");
+        AssertEqual("2", source.Metadata["machine_count"], "electric-machine count metadata");
+        AssertEqual("4", source.Metadata["electrical_fundamental_order"], "electric fundamental order metadata");
+    }
+
+    private static void TestCompositeTopology()
+    {
+        var rotary = WankelSourceFactory.Create("rotary-child", 2, 1.3, 9000);
+        var electric = ElectricMachineSourceFactory.Create("motor-child", 4, 18000);
+
+        var source = CompositeSourceFactory.Create(
+            "rotary-hybrid",
+            new[]
+            {
+                new CompositeSourceComponent("ice", rotary, SpeedRatio: 1.0, Gain: 1.0),
+                new CompositeSourceComponent("front-motor", electric, SpeedRatio: 2.5, Gain: 0.55, PhaseOffsetRevolutions: 0.125)
+            });
+
+        AssertEqual("multi-source-composite", source.Family, "composite family");
+        AssertEqual("2", source.Metadata["component_count"], "composite component count");
+        AssertTrue(source.Metadata["component_families"].Contains("wankel", StringComparison.Ordinal), "composite includes Wankel");
+        AssertTrue(source.Metadata["component_families"].Contains("electric-machine", StringComparison.Ordinal), "composite includes electric machine");
+        AssertTrue(source.EventTrains.All(train => train.Name.StartsWith("ice/", StringComparison.Ordinal)), "composite combustion train provenance");
+        AssertTrue(source.HarmonicLayers.Any(layer => layer.Name.StartsWith("front-motor/", StringComparison.Ordinal)), "composite electric layer provenance");
+    }
+
+    private static void TestAdvancedTopologyRenderers()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"esrecorder-advanced-topology-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var electric = ElectricMachineSourceFactory.Create("render-electric", 4, 18000);
+            var rotary = WankelSourceFactory.Create("render-rotary", 2, 1.3, 9000);
+            var sources = new[]
+            {
+                RadialCamRingSourceFactory.Create("render-radial", "radial-piston", 7, 7.0, 3200, 2),
+                RadialCamRingSourceFactory.Create("render-dcr", "dual-cam-ring", 16, 4.8, 7000, 1, 2, 4),
+                AxialPistonSourceFactory.Create("render-axial", 12, 2.0, 9500, 2),
+                FreePistonSourceFactory.Create("render-free-piston", 4, 4.0, 3600),
+                electric,
+                CompositeSourceFactory.Create(
+                    "render-hybrid",
+                    new[]
+                    {
+                        new CompositeSourceComponent("rotary", rotary, 1.0, 1.0),
+                        new CompositeSourceComponent("motor", electric, 2.0, 0.5, 0.1)
+                    })
+            };
+
+            foreach (var source in sources)
+            {
+                var output = Path.Combine(root, $"{source.Id}.wav");
+                var measurement = EventAudioRenderer.Render(
+                    source,
+                    new EventRenderRequest(
+                        output,
+                        Rpm: source.Family == "free-piston" ? 2400 : 3000,
+                        Throttle: 75,
+                        SampleRate: 8000,
+                        LengthSeconds: 1));
+
+                AssertTrue(File.Exists(output), $"{source.Id} render WAV exists");
+                AssertTrue(new FileInfo(output).Length > 44, $"{source.Id} render WAV contains PCM");
+                AssertTrue(measurement.PeakAbsolute > 0.005, $"{source.Id} render peak is non-zero");
+                AssertTrue(measurement.RootMeanSquare > 0.0005, $"{source.Id} render RMS is non-zero");
+                AssertTrue(double.IsFinite(measurement.PeakAbsolute), $"{source.Id} render peak is finite");
+                AssertTrue(double.IsFinite(measurement.RootMeanSquare), $"{source.Id} render RMS is finite");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void TestNewTopologyRenderers()
