@@ -77,8 +77,63 @@ Current direct source families:
 
 - classic piston engine through the legacy engine-sim 0.1.11a backend;
 - generic periodic event source through event-source-v1;
-- Wankel through event-source-v1.
+- Wankel through event-source-v1;
+- multi-crank compositions through event-source-v1;
+- generic two-stroke piston engines through event-source-v1;
+- opposed-piston two-stroke engines through event-source-v1.
 
-Planned event-source families include two-stroke, opposed-piston, multi-crank, radial/cam-ring, axial-piston, free-piston, electric-machine and multi-source composites.
+Planned event-source families include radial/cam-ring, axial-piston, free-piston, electric-machine and multi-source composites.
 
 A planned family is not considered supported until it has a topology factory, contract tests and render evidence. No generic fallback is permitted.
+
+
+## Multi-crank v1
+
+`MultiCrankSourceFactory` composes two to sixteen independent crank modules.
+Each module has its own:
+
+- power-event count per reference revolution;
+- shaft-speed ratio;
+- phase offset;
+- gain;
+- mechanical order.
+
+The renderer preserves every module as its own event train. H, U, square and
+other multi-crank concepts therefore retain inter-crank phasing instead of being
+collapsed into one synthetic crankshaft.
+
+CLI module syntax is:
+
+```text
+name:events:phase-degrees[:shaft-ratio[:gain[:mechanical-order]]]
+```
+
+Modules are separated with semicolons.
+
+## Generic two-stroke piston v1
+
+`TwoStrokePistonSourceFactory` schedules exactly one power event per cylinder
+per crankshaft revolution. Cylinder count, layout and scavenging identity remain
+explicit metadata. The initial renderer adds combustion-pulse, reciprocating and
+scavenging-flow acoustic layers without claiming full port-flow simulation.
+
+## Opposed-piston two-stroke v1
+
+`OpposedPistonSourceFactory` models combustion by chamber rather than by piston.
+A six-chamber / twelve-piston engine therefore contains six combustion events
+per output revolution, not twelve.
+
+One or more crankshafts are represented through separate mechanical harmonic
+layers with explicit phase increments. This prevents the second crankshaft from
+incorrectly doubling combustion events while preserving the multi-crank
+mechanical signature.
+
+## CLI examples
+
+```text
+ESRecorder.Cli render-multi-crank --name h8 --modules "upper:2:0:1;lower:2:90:1" --redline 7500 --output recordings/h8 --rpm 1500:44100,6500:44100 --throttle 0,100 --length 5
+
+ESRecorder.Cli render-two-stroke --name v6-2t --cylinders 6 --displacement 2.0 --redline 12000 --layout V6 --scavenging loop --output recordings/v6-2t --rpm 2000:44100,11000:44100 --throttle 0,100 --length 5
+
+ESRecorder.Cli render-opposed-piston --name op6 --chambers 6 --displacement 3.6 --redline 4500 --cranks 2 --crank-phase-degrees 12 --combustion diesel --output recordings/op6 --rpm 1000:44100,4000:44100 --throttle 0,100 --length 5
+```
