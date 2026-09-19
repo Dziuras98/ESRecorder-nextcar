@@ -243,7 +243,7 @@ internal static class Program
                 throw new ArgumentException($"RPM point must use rpm:frequency syntax: {entry}");
             return new RpmPoint(
                 ParsePositiveInt(components[0], "rpm"),
-                ParseRangeInt(components[1], "frequency", 8000, 192000));
+                ParsePositiveInt(components[1], "frequency"));
         })
         .ToArray();
 
@@ -298,26 +298,4 @@ internal static class Program
         return result;
     }
 
-    private static void PrintUsage()
-    {
-        Console.WriteLine(
-            """
-            ESRecorder headless host
-
-            Print machine-readable recorder capabilities:
-              ESRecorder.Cli capabilities
-
-            Render a native ESRecorder-nextcar Wankel source:
-              ESRecorder.Cli render-wankel                 --name four-rotor                 --rotors 4                 --displacement 2.6                 --redline 9500                 --output recordings/four-rotor                 --rpm 1500:44100,4500:44100,8500:44100                 --throttle 0,100                 --length 5
-
-            Render an arbitrary event-source-v1 definition:
-              ESRecorder.Cli render-event-source                 --source source.json                 --output recordings/custom                 --rpm 1500:44100,4500:44100                 --throttle 0,100                 --length 5
-
-            Record neutral sample-bank source data through the legacy engine-sim backend:
-              ESRecorder.Cli record                 --engine-script es/assets/main.mr                 --output recordings/example                 --name example                 --rpm 1000:44100,2000:44100,3000:44100                 --throttle 0,50,100                 --length 5                 --warmup 1                 --instances 4
-
-            Export an existing neutral manifest to BeamNG files:
-              ESRecorder.Cli export-beamng                 --manifest recordings/example/recording-manifest.json                 --output exports/example                 --starter-event i4                 --idle-rpm 800                 --max-rpm 7500                 --static-friction 12                 --dynamic-friction 0.01
-            """);
-    }
-}
+    private static void PrintUsage()\n    {\n        Console.WriteLine(\n            """\n            ESRecorder headless host\n\n            Print machine-readable recorder capabilities:\n              ESRecorder.Cli capabilities\n\n            Render a native ESRecorder-nextcar Wankel source:\n              ESRecorder.Cli render-wankel\n                --name four-rotor\n                --rotors 4\n                --displacement 2.6\n                --redline 9500\n                --output recordings/four-rotor\n                --rpm 1500:44100,4500:44100,8500:44100\n                --throttle 0,100\n                --length 5\n\n            Render an arbitrary event-source-v1 definition:\n              ESRecorder.Cli render-event-source\n                --source source.json\n                --output recordings/custom\n                --rpm 1500:44100,4500:44100\n                --throttle 0,100\n                --length 5\n\n            Record neutral sample-bank source data through the legacy engine-sim backend:\n              ESRecorder.Cli record\n                --engine-script es/assets/main.mr\n                --output recordings/example\n                --name example\n                --rpm 1000:44100,2000:44100,3000:44100\n                --throttle 0,50,100\n                --length 5\n                --warmup 1\n                --instances 4\n\n            Export an existing neutral manifest to BeamNG files:\n              ESRecorder.Cli export-beamng\n                --manifest recordings/example/recording-manifest.json\n                --output exports/example\n                --starter-event i4\n                --idle-rpm 800\n                --max-rpm 7500\n                --static-friction 12\n                --dynamic-friction 0.01\n            """);\n    }\n}\n
