@@ -48,6 +48,10 @@ internal static class Program
                     return RenderTwoStroke(options, cancellation.Token);
                 case "render-opposed-piston":
                     return RenderOpposedPiston(options, cancellation.Token);
+                case "render-fixed-firing-piston":
+                    return RenderFixedFiringPiston(options, cancellation.Token);
+                case "render-split-single":
+                    return RenderSplitSingle(options, cancellation.Token);
                 case "render-radial-cam-ring":
                     return RenderRadialCamRing(options, cancellation.Token);
                 case "render-axial-piston":
@@ -208,6 +212,51 @@ internal static class Program
             ParseRangeInt(Get(options, "cranks", "2"), "cranks", 1, 8),
             ParseFiniteDouble(Get(options, "crank-phase-degrees", "12"), "crank-phase-degrees"),
             Get(options, "combustion", "generic"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderFixedFiringPiston(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var cylinderCount = ParseRangeInt(GetRequired(options, "cylinders"), "cylinders", 1, 128);
+        var bankCount = ParseRangeInt(GetRequired(options, "banks"), "banks", 1, 16);
+        var source = FixedFiringPistonSourceFactory.Create(
+            Get(options, "name", "fixed-firing-piston"),
+            cylinderCount,
+            bankCount,
+            ParsePositiveDouble(GetRequired(options, "displacement"), "displacement"),
+            ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 300, 30000),
+            ParseDoubleList(GetRequired(options, "ignition-degrees"), "ignition-degrees"),
+            ParseIntegerList(
+                GetRequired(options, "bank-assignments"),
+                "bank-assignments",
+                0,
+                bankCount - 1),
+            ParseRangeInt(Get(options, "cycle-degrees", "720"), "cycle-degrees", 360, 2880),
+            Get(options, "layout", "fixed-firing-piston"),
+            Get(options, "firing-label", "explicit"),
+            Get(options, "combustion", "petrol"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderSplitSingle(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = SplitSingleSourceFactory.Create(
+            Get(options, "name", "split-single"),
+            ParseRangeInt(GetRequired(options, "chambers"), "chambers", 1, 64),
+            ParseRangeInt(Get(options, "banks", "1"), "banks", 1, 16),
+            ParsePositiveDouble(GetRequired(options, "displacement"), "displacement"),
+            ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 300, 30000),
+            ParseFiniteDouble(
+                Get(options, "transfer-piston-phase-degrees", "15"),
+                "transfer-piston-phase-degrees"),
+            Get(options, "layout", "split-single"),
+            Get(options, "combustion", "petrol"));
 
         return RenderEventBank(source, options, cancellationToken);
     }
@@ -388,6 +437,36 @@ internal static class Program
                 ParsePositiveInt(components[1], "frequency"));
         })
         .ToArray();
+
+    private static IReadOnlyList<double> ParseDoubleList(string value, string name)
+    {
+        var values = value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(item => ParseFiniteDouble(item, name))
+            .ToArray();
+
+        if (values.Length == 0)
+            throw new ArgumentException($"--{name} must contain at least one value.");
+
+        return values;
+    }
+
+    private static IReadOnlyList<int> ParseIntegerList(
+        string value,
+        string name,
+        int minimum,
+        int maximum)
+    {
+        var values = value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(item => ParseRangeInt(item, name, minimum, maximum))
+            .ToArray();
+
+        if (values.Length == 0)
+            throw new ArgumentException($"--{name} must contain at least one value.");
+
+        return values;
+    }
 
     private static IReadOnlyList<CompositeSourceComponent> ParseCompositeComponents(string value)
     {
@@ -575,6 +654,37 @@ internal static class Program
                 --combustion diesel
                 --output recordings/op6
                 --rpm 1000:44100,4000:44100
+                --throttle 0,100
+                --length 5
+
+            Render an explicit fixed-firing piston source:
+              ESRecorder.Cli render-fixed-firing-piston
+                --name odd-fire-v6
+                --cylinders 6
+                --banks 2
+                --displacement 3.0
+                --max-rpm 8000
+                --cycle-degrees 720
+                --ignition-degrees 0,90,240,330,480,570
+                --bank-assignments 0,1,0,1,0,1
+                --layout V6
+                --firing-label odd-fire
+                --output recordings/odd-fire-v6
+                --rpm 1200:48000,7000:48000
+                --throttle 0,100
+                --length 5
+
+            Render a split-single/twingle two-stroke source:
+              ESRecorder.Cli render-split-single
+                --name split-single-six
+                --chambers 6
+                --banks 2
+                --displacement 3.0
+                --max-rpm 9000
+                --transfer-piston-phase-degrees 15
+                --layout V-split-single
+                --output recordings/split-single-six
+                --rpm 1500:48000,8000:48000
                 --throttle 0,100
                 --length 5
 
