@@ -43,20 +43,27 @@ public static class RecorderCapabilityCatalog
                 SourceFamilies:
                 [
                     "generic-periodic-event-source",
-                    "wankel"
+                    "wankel",
+                    "multi-crank",
+                    "two-stroke-piston",
+                    "opposed-piston"
                 ],
                 Features:
                 [
                     "arbitrary-event-phases",
                     "multiple-shaft-ratios",
+                    "multi-event-train-composition",
                     "periodic-combustion-pulses",
+                    "two-stroke-event-scheduling",
+                    "opposed-piston-chamber-model",
                     "harmonic-mechanical-layers",
                     "deterministic-noise",
                     "cross-platform-pcm16-wav-render"
                 ],
                 Notes:
-                    "Native ESRecorder-nextcar event renderer. Wankel is represented directly as rotor " +
-                    "power events and is not mapped onto a piston engine.")
+                    "Native ESRecorder-nextcar event renderer. Wankel, multi-crank, two-stroke piston " +
+                    "and opposed-piston sources are represented by their explicit event/shaft topology " +
+                    "rather than by fallback piston-engine substitutions.")
         ],
         Guarantees:
         [
@@ -67,9 +74,6 @@ public static class RecorderCapabilityCatalog
         ],
         PlannedSourceFamilies:
         [
-            "two-stroke-piston",
-            "opposed-piston",
-            "multi-crank",
             "radial-cam-ring",
             "axial-piston",
             "free-piston",
