@@ -42,6 +42,12 @@ internal static class Program
                     return PrintCapabilities();
                 case "render-wankel":
                     return RenderWankel(options, cancellation.Token);
+                case "render-multi-crank":
+                    return RenderMultiCrank(options, cancellation.Token);
+                case "render-two-stroke":
+                    return RenderTwoStroke(options, cancellation.Token);
+                case "render-opposed-piston":
+                    return RenderOpposedPiston(options, cancellation.Token);
                 case "render-event-source":
                     return RenderEventSource(options, cancellation.Token);
                 default:
@@ -152,6 +158,50 @@ internal static class Program
         return RenderEventBank(source, options, cancellationToken);
     }
 
+    private static int RenderMultiCrank(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = MultiCrankSourceFactory.Create(
+            Get(options, "name", "multi-crank"),
+            ParseMultiCrankModules(GetRequired(options, "modules")),
+            ParseRangeInt(GetRequired(options, "redline"), "redline", 500, 30000),
+            Get(options, "family", "multi-crank"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderTwoStroke(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = TwoStrokePistonSourceFactory.Create(
+            Get(options, "name", "two-stroke"),
+            ParseRangeInt(GetRequired(options, "cylinders"), "cylinders", 1, 128),
+            ParsePositiveDouble(GetRequired(options, "displacement"), "displacement"),
+            ParseRangeInt(GetRequired(options, "redline"), "redline", 500, 30000),
+            Get(options, "layout", "unspecified"),
+            Get(options, "scavenging", "generic"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderOpposedPiston(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = OpposedPistonSourceFactory.Create(
+            Get(options, "name", "opposed-piston"),
+            ParseRangeInt(GetRequired(options, "chambers"), "chambers", 1, 64),
+            ParsePositiveDouble(GetRequired(options, "displacement"), "displacement"),
+            ParseRangeInt(GetRequired(options, "redline"), "redline", 300, 20000),
+            ParseRangeInt(Get(options, "cranks", "2"), "cranks", 1, 8),
+            ParseFiniteDouble(Get(options, "crank-phase-degrees", "12"), "crank-phase-degrees"),
+            Get(options, "combustion", "generic"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
     private static int RenderEventSource(
         IReadOnlyDictionary<string, string> options,
         CancellationToken cancellationToken)
@@ -247,6 +297,42 @@ internal static class Program
         })
         .ToArray();
 
+    private static IReadOnlyList<MultiCrankModuleSpec> ParseMultiCrankModules(string value)
+    {
+        var modules = value
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select((entry, index) =>
+            {
+                var components = entry.Split(':', StringSplitOptions.TrimEntries);
+                if (components.Length is < 3 or > 6)
+                {
+                    throw new ArgumentException(
+                        $"Multi-crank module must use name:events:phase-degrees[:shaft-ratio[:gain[:mechanical-order]]] syntax: {entry}");
+                }
+
+                var phaseDegrees = ParseFiniteDouble(components[2], "module-phase-degrees");
+                return new MultiCrankModuleSpec(
+                    components[0],
+                    ParseRangeInt(components[1], "module-events", 1, 128),
+                    components.Length >= 4
+                        ? ParsePositiveDouble(components[3], "module-shaft-ratio")
+                        : 1.0,
+                    phaseDegrees / 360.0,
+                    components.Length >= 5
+                        ? ParsePositiveDouble(components[4], "module-gain")
+                        : 1.0,
+                    components.Length >= 6
+                        ? ParsePositiveDouble(components[5], "module-mechanical-order")
+                        : 1.0);
+            })
+            .ToArray();
+
+        if (modules.Length is < 2 or > 16)
+            throw new ArgumentException("--modules must define between 2 and 16 crank modules.");
+
+        return modules;
+    }
+
     private static IReadOnlyList<int> ParseIntegers(string value, string name) => value
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(item => ParseRangeInt(item, name, 0, 100))
@@ -291,6 +377,16 @@ internal static class Program
         return result;
     }
 
+    private static double ParseFiniteDouble(string value, string name)
+    {
+        if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result) ||
+            !double.IsFinite(result))
+        {
+            throw new ArgumentException($"--{name} must be a finite number.");
+        }
+        return result;
+    }
+
     private static float ParseFloat(string value, string name)
     {
         if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
@@ -315,6 +411,43 @@ internal static class Program
                 --redline 9500
                 --output recordings/four-rotor
                 --rpm 1500:44100,4500:44100,8500:44100
+                --throttle 0,100
+                --length 5
+
+            Render a multi-crank source:
+              ESRecorder.Cli render-multi-crank
+                --name h8
+                --modules "left:2:0:1;right:2:90:1"
+                --redline 7500
+                --output recordings/h8
+                --rpm 1500:44100,6500:44100
+                --throttle 0,100
+                --length 5
+
+            Render a generic two-stroke piston source:
+              ESRecorder.Cli render-two-stroke
+                --name inline-three-2t
+                --cylinders 3
+                --displacement 1.5
+                --redline 8000
+                --layout inline-3
+                --scavenging uniflow
+                --output recordings/inline-three-2t
+                --rpm 1500:44100,7000:44100
+                --throttle 0,100
+                --length 5
+
+            Render an opposed-piston two-stroke source:
+              ESRecorder.Cli render-opposed-piston
+                --name op6
+                --chambers 6
+                --displacement 3.6
+                --redline 4500
+                --cranks 2
+                --crank-phase-degrees 12
+                --combustion diesel
+                --output recordings/op6
+                --rpm 1000:44100,4000:44100
                 --throttle 0,100
                 --length 5
 
