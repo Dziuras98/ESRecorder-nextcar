@@ -84,7 +84,7 @@ Current direct source families:
 
 The event backend now directly supports all source-family primitives required by the current PR #193 concept catalog: radial/cam-ring, axial-piston, free-piston, electric-machine and multi-source composition are implemented in addition to the earlier families.
 
-A family is considered supported only when it has a topology factory, contract tests and render evidence. No generic fallback is permitted.
+A family is considered supported only when it has a topology factory, contract tests and render evidence. No generic fallback is permitted. The current catalog additionally uses explicit fixed-firing banked piston and split-single/twingle two-stroke primitives.
 
 
 ## Multi-crank v1
@@ -215,3 +215,77 @@ Example:
 ```text
 ESRecorder.Cli render-composite --name rotary-hybrid --sources "ice|rotary/event-source.json|1|1|0;front-motor|motor/event-source.json|2.5|0.55|0.125" --output recordings/rotary-hybrid --rpm 1500:44100,8500:44100 --throttle 0,100 --length 5
 ```
+
+
+## Fixed-firing banked piston v1
+
+`FixedFiringPistonSourceFactory` is the explicit firing-order primitive for
+conventional one-crank piston engines whose identity depends on crank/firing
+geometry rather than a new thermodynamic cycle.
+
+Authoring input includes:
+
+- cylinder count;
+- acoustic bank count;
+- one ignition angle per cylinder over the declared cycle;
+- one bank assignment per cylinder;
+- cycle length in crank degrees;
+- layout and firing-pattern labels.
+
+Every cylinder is materialized as its own event train. This intentionally allows
+simultaneous/grouped combustion events without losing amplitude through
+duplicate-phase collapse. Bank identity is retained in event names and
+bank-specific exhaust harmonic layers.
+
+The same primitive covers current PR #193 families such as:
+
+- asymmetric odd-cylinder V3/V5/V7/V9/V11/V13/V15;
+- 3–6 bank fan/Y/X/pentafan engines;
+- narrow-angle VR and W layouts;
+- 180/270/360-degree twins;
+- flat/crossplane and odd/even-fire fixed crank arrangements;
+- grouped/big-bang fixed firing orders.
+
+`CreateEven` derives evenly spaced ignition angles when the catalog explicitly
+declares an even-firing strategy. Uneven/grouped layouts should supply explicit
+ignition-angle tables rather than silently falling back to even firing.
+
+CLI:
+
+```text
+ESRecorder.Cli render-fixed-firing-piston --name twin270 --cylinders 2 --banks 1 --displacement 1.0 --max-rpm 9000 --cycle-degrees 720 --ignition-degrees 0,270 --bank-assignments 0,0 --layout inline-2 --firing-label 270/450 --output recordings/twin270 --rpm 1500:48000,8000:48000 --throttle 0,100 --length 5
+```
+
+## Split-single / twingle two-stroke v1
+
+`SplitSingleSourceFactory` models combustion by chamber. Each chamber contains
+two coordinated pistons:
+
+- an exhaust-control piston;
+- a transfer/scavenge piston.
+
+The paired pistons use a fixed phase offset and contribute separate mechanical
+harmonics. They do **not** duplicate the chamber's combustion event.
+
+A six-chamber split-single therefore records:
+
+- 6 combustion events per output-shaft revolution;
+- 12 physical pistons;
+- one explicit transfer-piston phase relationship;
+- optional multiple acoustic banks for V/flat layouts.
+
+This directly represents the accepted FREE Concept Car 006 family without
+mapping it to ordinary two-stroke cylinders or opposed-piston combustion.
+
+CLI:
+
+```text
+ESRecorder.Cli render-split-single --name split6 --chambers 6 --banks 2 --displacement 3.0 --max-rpm 9000 --transfer-piston-phase-degrees 15 --layout V-split-single --output recordings/split6 --rpm 1500:48000,8000:48000 --throttle 0,100 --length 5
+```
+
+## Single-crank OPOC
+
+The existing `OpposedPistonSourceFactory` accepts `crankshaftCount = 1`, so
+the CL1M16 single-crank OPOC family does not require another combustion source
+type. Its chambers remain one-event-per-revolution two-stroke chambers while the
+single central crank contributes the mechanical layer.
