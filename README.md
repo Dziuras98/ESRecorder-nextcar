@@ -13,8 +13,8 @@ separate headless architecture:
 
 The fork also owns a platform-neutral `event-source-v1` acoustic renderer. This is
 the extension point for powertrains that cannot be represented honestly by the
-legacy engine-sim 0.1.11a DLL. The first native source family is Wankel: rotor
-power events are rendered directly rather than approximated with piston cylinders.
+legacy engine-sim 0.1.11a DLL. Native source families currently include Wankel,
+multi-crank, generic two-stroke piston and opposed-piston two-stroke topologies.
 
 See `docs/HEADLESS_ARCHITECTURE.md` for commands and architectural boundaries.
 
@@ -79,3 +79,17 @@ dotnet run --project src/ESRecorder.Cli/ESRecorder.Cli.csproj -- `
 
 The command writes `event-source.json`, one PCM16 WAV per RPM/throttle point,
 and `event-render-report.json`. See `docs/EVENT_SOURCE_V1.md`.
+
+
+## Multi-crank and two-stroke rendering
+
+The headless CLI additionally exposes:
+
+```text
+render-multi-crank
+render-two-stroke
+render-opposed-piston
+```
+
+These commands materialize versioned `event-source.json` graphs and PCM16 WAV
+banks through the same deterministic event renderer used by the Wankel path.
