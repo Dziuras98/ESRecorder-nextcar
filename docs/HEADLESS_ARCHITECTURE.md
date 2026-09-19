@@ -118,3 +118,19 @@ shaft-speed ratio and phase. Generic two-strokes schedule one power event per
 cylinder per crankshaft revolution. Opposed-piston sources schedule combustion
 per chamber and keep crankshaft motion in separate mechanical layers, avoiding
 double-counted combustion events.
+
+
+## Complete PR #193 source-family primitive set
+
+The event backend now also contains reusable radial/cam-ring, axial-piston,
+free-piston, electric-machine and source-composition factories.
+
+Multi-revolution event cycles allow odd-cylinder four-stroke radials to retain
+their correct two-revolution firing periodicity. Free-piston sources use a
+non-rotating reference cycle. Electric-machine sources are harmonic-only and
+apply deterministic non-coherent phase offsets between physical machines.
+Composite sources merge child event/harmonic graphs with independent component
+speed ratios and gains.
+
+These remain offline authoring abstractions. Their presence does not add an
+ESRecorder or event-renderer dependency to Unreal runtime code.

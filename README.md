@@ -13,8 +13,9 @@ separate headless architecture:
 
 The fork also owns a platform-neutral `event-source-v1` acoustic renderer. This is
 the extension point for powertrains that cannot be represented honestly by the
-legacy engine-sim 0.1.11a DLL. Native source families currently include Wankel,
-multi-crank, generic two-stroke piston and opposed-piston two-stroke topologies.
+legacy engine-sim 0.1.11a DLL. Native source families currently include Wankel, multi-crank, generic two-stroke,
+opposed-piston, radial/cam-ring, axial-piston, free-piston, electric-machine and
+multi-source/composite topologies.
 
 See `docs/HEADLESS_ARCHITECTURE.md` for commands and architectural boundaries.
 
@@ -93,3 +94,21 @@ render-opposed-piston
 
 These commands materialize versioned `event-source.json` graphs and PCM16 WAV
 banks through the same deterministic event renderer used by the Wankel path.
+
+
+## Advanced event-source families
+
+The headless CLI additionally exposes:
+
+```text
+render-radial-cam-ring
+render-axial-piston
+render-free-piston
+render-electric
+render-composite
+```
+
+Free-piston render requests interpret the numeric RPM field as oscillation
+cycles/minute. Composite rendering consumes existing `event-source.json` files
+and preserves per-component speed ratio, gain and phase. See
+`docs/EVENT_SOURCE_V1.md` for the normative authoring contract.
