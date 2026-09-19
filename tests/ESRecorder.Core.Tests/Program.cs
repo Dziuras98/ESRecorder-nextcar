@@ -22,6 +22,10 @@ internal static class Program
             TestFreePistonTopology();
             TestElectricMachineTopology();
             TestCompositeTopology();
+            TestFixedFiringPistonTopology();
+            TestSplitSingleTopology();
+            TestSingleCrankOpocTopology();
+            TestAcceptedFamilyRenderers();
             TestAdvancedTopologyRenderers();
             TestNewTopologyRenderers();
             TestEventSourceRoundTripAndRender();
@@ -99,12 +103,25 @@ internal static class Program
             "axial-piston",
             "free-piston",
             "electric-machine",
-            "multi-source-composite"
+            "multi-source-composite",
+            "fixed-firing-piston",
+            "split-single-two-stroke"
         })
         {
             AssertTrue(
                 eventBackend.SourceFamilies.Contains(family, StringComparer.Ordinal),
                 $"event backend exposes {family}");
+        }
+        foreach (var feature in new[]
+        {
+            "explicit-ignition-angle-table",
+            "cylinder-bank-assignment",
+            "paired-piston-phase-model"
+        })
+        {
+            AssertTrue(
+                eventBackend.Features.Contains(feature, StringComparer.Ordinal),
+                $"event backend exposes {feature}");
         }
         AssertTrue(
             capabilities.Guarantees.Contains("no-silent-topology-fallback", StringComparer.Ordinal),
@@ -303,6 +320,180 @@ internal static class Program
         AssertTrue(source.Metadata["component_families"].Contains("electric-machine", StringComparison.Ordinal), "composite includes electric machine");
         AssertTrue(source.EventTrains.All(train => train.Name.StartsWith("ice/", StringComparison.Ordinal)), "composite combustion train provenance");
         AssertTrue(source.HarmonicLayers.Any(layer => layer.Name.StartsWith("front-motor/", StringComparison.Ordinal)), "composite electric layer provenance");
+    }
+
+    private static void TestFixedFiringPistonTopology()
+    {
+        var asymmetricV9 = FixedFiringPistonSourceFactory.CreateEven(
+            "asymmetric-v9",
+            cylinderCount: 9,
+            bankCount: 2,
+            displacementLitres: 3.6,
+            maxRpm: 8800,
+            cylinderBankAssignments: new[] { 0, 1, 0, 1, 0, 1, 0, 1, 0 },
+            cycleDegrees: 720,
+            layout: "asymmetric-v9-5+4",
+            firingLabel: "EVEN");
+
+        AssertEqual("fixed-firing-piston", asymmetricV9.Family, "fixed-firing family");
+        AssertEqual(9, asymmetricV9.EventTrains.Length, "asymmetric V9 cylinder event-train count");
+        AssertEqual("2", asymmetricV9.Metadata["bank_count"], "asymmetric V9 bank count");
+        AssertEqual("4.5", asymmetricV9.Metadata["power_events_per_output_revolution"], "asymmetric V9 event rate");
+        AssertEqual(
+            "0,1,0,1,0,1,0,1,0",
+            asymmetricV9.Metadata["cylinder_bank_assignments"],
+            "asymmetric V9 bank assignments");
+        AssertTrue(
+            asymmetricV9.EventTrains.All(train => Math.Abs(train.ShaftRatio - 0.5) < 1e-9),
+            "four-stroke fixed-firing event trains use half crankshaft rate");
+
+        var twin270 = FixedFiringPistonSourceFactory.Create(
+            "twin-270",
+            cylinderCount: 2,
+            bankCount: 1,
+            displacementLitres: 1.0,
+            maxRpm: 9000,
+            ignitionAnglesDegrees: new[] { 0.0, 270.0 },
+            cylinderBankAssignments: new[] { 0, 0 },
+            cycleDegrees: 720,
+            layout: "inline-2",
+            firingLabel: "270/450");
+
+        AssertEqual("0,270", twin270.Metadata["ignition_angles_degrees"], "270 twin ignition table");
+        AssertNear(0.0, twin270.EventTrains[0].EventPhases[0], 1e-9, "270 twin first phase");
+        AssertNear(270.0 / 720.0, twin270.EventTrains[1].EventPhases[0], 1e-9, "270 twin second phase");
+
+        var fan15Assignments = Enumerable.Range(0, 15).Select(index => index % 5).ToArray();
+        var fan15 = FixedFiringPistonSourceFactory.CreateEven(
+            "pentafan-15",
+            cylinderCount: 15,
+            bankCount: 5,
+            displacementLitres: 4.5,
+            maxRpm: 9500,
+            cylinderBankAssignments: fan15Assignments,
+            layout: "5-banks-x-3",
+            firingLabel: "EVEN");
+
+        AssertEqual(15, fan15.EventTrains.Length, "pentafan-15 event train count");
+        AssertEqual("5", fan15.Metadata["bank_count"], "pentafan-15 bank count");
+        AssertEqual("7.5", fan15.Metadata["power_events_per_output_revolution"], "pentafan-15 event rate");
+    }
+
+    private static void TestSplitSingleTopology()
+    {
+        var source = SplitSingleSourceFactory.Create(
+            "split-single-six",
+            chamberCount: 6,
+            bankCount: 2,
+            displacementLitres: 3.0,
+            maxRpm: 9000,
+            transferPistonPhaseDegrees: 15.0,
+            layout: "V-split-single",
+            combustionClass: "petrol");
+
+        AssertEqual("split-single-two-stroke", source.Family, "split-single family");
+        AssertEqual(1, source.EventTrains.Length, "split-single combustion train count");
+        AssertEqual(6, source.EventTrains[0].EventPhases.Length, "split-single chamber event count");
+        AssertEqual(5, source.HarmonicLayers.Length, "split-single mechanical/exhaust layer count");
+        AssertEqual("6", source.Metadata["combustion_chamber_count"], "split-single chamber metadata");
+        AssertEqual("12", source.Metadata["piston_count"], "split-single piston metadata");
+        AssertEqual("2", source.Metadata["bank_count"], "split-single bank metadata");
+        AssertEqual("6", source.Metadata["power_events_per_output_revolution"], "split-single event rate");
+        AssertEqual("15", source.Metadata["transfer_piston_phase_degrees"], "split-single piston phase");
+    }
+
+    private static void TestSingleCrankOpocTopology()
+    {
+        var source = OpposedPistonSourceFactory.Create(
+            "single-crank-opoc",
+            chamberCount: 6,
+            displacementLitres: 3.0,
+            redlineRpm: 6500,
+            crankshaftCount: 1,
+            crankPhaseDegrees: 0.0,
+            combustionClass: "petrol");
+
+        AssertEqual("opposed-piston", source.Family, "single-crank OPOC family");
+        AssertEqual("6", source.Metadata["chamber_count"], "single-crank OPOC chamber count");
+        AssertEqual("12", source.Metadata["piston_count"], "single-crank OPOC piston count");
+        AssertEqual("1", source.Metadata["crankshaft_count"], "single-crank OPOC crank count");
+        AssertEqual("6", source.Metadata["power_events_per_output_revolution"], "single-crank OPOC event rate");
+        AssertEqual(1, source.EventTrains.Length, "single-crank OPOC shared combustion train");
+    }
+
+    private static void TestAcceptedFamilyRenderers()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"esrecorder-accepted-family-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var sources = new[]
+            {
+                FixedFiringPistonSourceFactory.CreateEven(
+                    "render-asymmetric-v9",
+                    9,
+                    2,
+                    3.6,
+                    8800,
+                    new[] { 0, 1, 0, 1, 0, 1, 0, 1, 0 },
+                    720,
+                    "asymmetric-v9-5+4",
+                    "EVEN"),
+                FixedFiringPistonSourceFactory.Create(
+                    "render-270-twin",
+                    2,
+                    1,
+                    1.0,
+                    9000,
+                    new[] { 0.0, 270.0 },
+                    new[] { 0, 0 },
+                    720,
+                    "inline-2",
+                    "270/450"),
+                SplitSingleSourceFactory.Create(
+                    "render-split-single-six",
+                    6,
+                    2,
+                    3.0,
+                    9000,
+                    15.0,
+                    "V-split-single"),
+                OpposedPistonSourceFactory.Create(
+                    "render-single-crank-opoc",
+                    6,
+                    3.0,
+                    6500,
+                    1,
+                    0.0,
+                    "petrol")
+            };
+
+            foreach (var source in sources)
+            {
+                var output = Path.Combine(root, $"{source.Id}.wav");
+                var measurement = EventAudioRenderer.Render(
+                    source,
+                    new EventRenderRequest(
+                        output,
+                        Rpm: 4000,
+                        Throttle: 75,
+                        SampleRate: 16000,
+                        LengthSeconds: 1));
+
+                AssertTrue(File.Exists(output), $"{source.Id} render WAV exists");
+                AssertTrue(new FileInfo(output).Length > 44, $"{source.Id} render WAV contains PCM");
+                AssertTrue(measurement.PeakAbsolute > 0.005, $"{source.Id} render peak is non-zero");
+                AssertTrue(measurement.RootMeanSquare > 0.0005, $"{source.Id} render RMS is non-zero");
+                AssertTrue(double.IsFinite(measurement.PeakAbsolute), $"{source.Id} render peak is finite");
+                AssertTrue(double.IsFinite(measurement.RootMeanSquare), $"{source.Id} render RMS is finite");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void TestAdvancedTopologyRenderers()
