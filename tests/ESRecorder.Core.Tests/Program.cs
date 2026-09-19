@@ -12,6 +12,9 @@ internal static class Program
         {
             TestDeterministicPlan();
             TestDuplicateThrottleRejected();
+            TestCapabilityContract();
+            TestNativeWankelEventModel();
+            TestEventSourceRoundTripAndRender();
             await TestCoordinatorAndArtifactsAsync().ConfigureAwait(false);
             Console.WriteLine("PASS: headless recorder core contract tests");
             return 0;
@@ -55,6 +58,80 @@ internal static class Program
         catch (ArgumentException exception) when (
             exception.Message.Contains("Duplicate throttle", StringComparison.Ordinal))
         {
+        }
+    }
+
+    private static void TestCapabilityContract()
+    {
+        var capabilities = RecorderCapabilityCatalog.Create();
+        AssertEqual(1, capabilities.SchemaVersion, "capability schema");
+        AssertEqual(
+            "nextcar-recorder-capabilities-v1",
+            capabilities.CapabilityContract,
+            "capability contract id");
+
+        var eventBackend = capabilities.Backends.Single(backend => backend.Id == "event-source-v1");
+        AssertTrue(
+            eventBackend.SourceFamilies.Contains("wankel", StringComparer.Ordinal),
+            "event backend exposes Wankel");
+        AssertTrue(
+            capabilities.Guarantees.Contains("no-silent-topology-fallback", StringComparer.Ordinal),
+            "capability contract forbids fallback");
+    }
+
+    private static void TestNativeWankelEventModel()
+    {
+        var source = WankelSourceFactory.Create("test-four-rotor", 4, 2.6, 9500);
+        AssertEqual("wankel", source.Family, "Wankel family");
+        AssertEqual(1, source.EventTrains.Length, "Wankel event train count");
+        AssertEqual(4, source.EventTrains[0].EventPhases.Length, "Wankel power event count");
+        AssertNear(0.0, source.EventTrains[0].EventPhases[0], 1e-9, "rotor phase 0");
+        AssertNear(0.25, source.EventTrains[0].EventPhases[1], 1e-9, "rotor phase 1");
+        AssertNear(0.50, source.EventTrains[0].EventPhases[2], 1e-9, "rotor phase 2");
+        AssertNear(0.75, source.EventTrains[0].EventPhases[3], 1e-9, "rotor phase 3");
+        AssertEqual(
+            "4",
+            source.Metadata["power_events_per_eccentric_shaft_revolution"],
+            "Wankel power events metadata");
+    }
+
+    private static void TestEventSourceRoundTripAndRender()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"esrecorder-event-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var source = WankelSourceFactory.Create("test-two-rotor", 2, 1.3, 9000);
+            var sourcePath = Path.Combine(root, "source.json");
+            AcousticEventSourceSerializer.Write(source, sourcePath);
+            var loaded = AcousticEventSourceSerializer.Read(sourcePath);
+
+            AssertEqual(source.Id, loaded.Id, "event source round-trip id");
+            AssertEqual(2, loaded.EventTrains[0].EventPhases.Length, "event source round-trip phases");
+
+            var output = Path.Combine(root, "sample.wav");
+            var measurement = EventAudioRenderer.Render(
+                loaded,
+                new EventRenderRequest(
+                    output,
+                    Rpm: 6000,
+                    Throttle: 100,
+                    SampleRate: 8000,
+                    LengthSeconds: 1));
+
+            AssertEqual(8000, measurement.SampleCount, "event render sample count");
+            AssertTrue(File.Exists(output), "event render WAV exists");
+            AssertTrue(new FileInfo(output).Length > 44, "event render WAV contains PCM");
+            AssertTrue(measurement.PeakAbsolute > 0.01, "event render peak is non-zero");
+            AssertTrue(measurement.RootMeanSquare > 0.001, "event render RMS is non-zero");
+            AssertTrue(double.IsFinite(measurement.PeakAbsolute), "event render peak is finite");
+            AssertTrue(double.IsFinite(measurement.RootMeanSquare), "event render RMS is finite");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
         }
     }
 
@@ -134,6 +211,15 @@ internal static class Program
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
             throw new InvalidOperationException($"{name}: expected {expected}, observed {actual}");
+    }
+
+    private static void AssertNear(double expected, double actual, double tolerance, string name)
+    {
+        if (!double.IsFinite(actual) || Math.Abs(expected - actual) > tolerance)
+        {
+            throw new InvalidOperationException(
+                $"{name}: expected {expected} +/- {tolerance}, observed {actual}");
+        }
     }
 
     private static void AssertTrue(bool condition, string name)
