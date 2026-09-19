@@ -46,7 +46,12 @@ public static class RecorderCapabilityCatalog
                     "wankel",
                     "multi-crank",
                     "two-stroke-piston",
-                    "opposed-piston"
+                    "opposed-piston",
+                    "radial-cam-ring",
+                    "axial-piston",
+                    "free-piston",
+                    "electric-machine",
+                    "multi-source-composite"
                 ],
                 Features:
                 [
@@ -56,14 +61,18 @@ public static class RecorderCapabilityCatalog
                     "periodic-combustion-pulses",
                     "two-stroke-event-scheduling",
                     "opposed-piston-chamber-model",
+                    "multi-revolution-event-cycles",
+                    "non-rotating-reference-cycle",
+                    "electric-shaft-order-harmonics",
+                    "source-graph-composition",
                     "harmonic-mechanical-layers",
                     "deterministic-noise",
                     "cross-platform-pcm16-wav-render"
                 ],
                 Notes:
-                    "Native ESRecorder-nextcar event renderer. Wankel, multi-crank, two-stroke piston " +
-                    "and opposed-piston sources are represented by their explicit event/shaft topology " +
-                    "rather than by fallback piston-engine substitutions.")
+                    "Native ESRecorder-nextcar event renderer. Wankel, multi-crank, two-stroke, opposed-piston, " +
+                    "radial/cam-ring, axial-piston, free-piston, electric-machine and composite sources are " +
+                    "represented by explicit event/harmonic topology rather than fallback substitutions.")
         ],
         Guarantees:
         [
@@ -72,12 +81,5 @@ public static class RecorderCapabilityCatalog
             "no-silent-topology-fallback",
             "offline-authoring-only"
         ],
-        PlannedSourceFamilies:
-        [
-            "radial-cam-ring",
-            "axial-piston",
-            "free-piston",
-            "electric-machine",
-            "multi-source-composite"
-        ]);
+        PlannedSourceFamilies: []);
 }
