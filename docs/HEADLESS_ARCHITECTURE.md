@@ -70,3 +70,39 @@ the adapter and is not imposed by the recorder core.
 nEXTcAR should consume the neutral manifest and WAV files. It must not consume
 BeamNG JBeam or `sfxBlend2D` files, and it must not load `esrecord-lib.dll` in the
 Unreal runtime.
+
+
+## Event-source-v1 backend
+
+The headless core now also contains a platform-neutral event renderer for source
+topologies that the historical engine-sim 0.1.11a DLL cannot represent.
+
+The event graph consists of:
+
+- periodic event trains with arbitrary phases inside a shaft revolution;
+- an explicit shaft-speed ratio relative to the requested engine RPM;
+- decaying pulse resonances with deterministic broadband texture;
+- independent harmonic/mechanical layers;
+- a deterministic PCM16 WAV renderer.
+
+The first native source family is Wankel. For a Wankel engine, each rotor
+contributes one power event per eccentric-shaft revolution. Multi-rotor phase
+offsets are distributed around that revolution, so a four-rotor source contains
+four directly represented rotor power events rather than four invented piston
+cylinders.
+
+This backend is intentionally separate from `NativeRecorderBackend`. The latter
+continues to wrap `esrecord-lib.dll` for legacy engine-sim scripts. Both remain
+offline authoring paths; neither is an Unreal runtime dependency.
+
+Use:
+
+```text
+ESRecorder.Cli capabilities
+ESRecorder.Cli render-wankel ...
+ESRecorder.Cli render-event-source ...
+```
+
+The generic command consumes a versioned JSON event graph, allowing future
+opposed-piston, multi-crank and other nonstandard source families to reuse the
+same render contract without per-vehicle recorder hacks.
