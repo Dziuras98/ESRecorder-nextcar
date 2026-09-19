@@ -106,3 +106,15 @@ ESRecorder.Cli render-event-source ...
 The generic command consumes a versioned JSON event graph, allowing future
 opposed-piston, multi-crank and other nonstandard source families to reuse the
 same render contract without per-vehicle recorder hacks.
+
+
+## Additional event-source topology factories
+
+The event backend now owns reusable factories for multi-crank, generic
+two-stroke piston and opposed-piston two-stroke sources.
+
+Multi-crank sources retain one event train per crank module with explicit
+shaft-speed ratio and phase. Generic two-strokes schedule one power event per
+cylinder per crankshaft revolution. Opposed-piston sources schedule combustion
+per chamber and keep crankshaft motion in separate mechanical layers, avoiding
+double-counted combustion events.
