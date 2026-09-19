@@ -15,7 +15,7 @@ The fork also owns a platform-neutral `event-source-v1` acoustic renderer. This 
 the extension point for powertrains that cannot be represented honestly by the
 legacy engine-sim 0.1.11a DLL. Native source families currently include Wankel, multi-crank, generic two-stroke,
 opposed-piston, radial/cam-ring, axial-piston, free-piston, electric-machine and
-multi-source/composite topologies.
+multi-source/composite, explicit fixed-firing banked piston and split-single/twingle two-stroke topologies.
 
 See `docs/HEADLESS_ARCHITECTURE.md` for commands and architectural boundaries.
 
@@ -112,3 +112,19 @@ Free-piston render requests interpret the numeric RPM field as oscillation
 cycles/minute. Composite rendering consumes existing `event-source.json` files
 and preserves per-component speed ratio, gain and phase. See
 `docs/EVENT_SOURCE_V1.md` for the normative authoring contract.
+
+
+## Fixed firing and split-single sources
+
+The headless CLI also exposes:
+
+```text
+render-fixed-firing-piston
+render-split-single
+```
+
+The fixed-firing command consumes explicit ignition angles and cylinder-bank
+assignments, allowing asymmetric-V, multi-bank fan, VR/W and fixed crank/firing
+families to share one data-driven primitive. Split-single rendering keeps one
+combustion event per chamber and models the paired exhaust/transfer pistons as
+fixed-phase mechanical contributors.
