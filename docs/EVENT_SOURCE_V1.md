@@ -289,3 +289,50 @@ The existing `OpposedPistonSourceFactory` accepts `crankshaftCount = 1`, so
 the CL1M16 single-crank OPOC family does not require another combustion source
 type. Its chambers remain one-event-per-revolution two-stroke chambers while the
 single central crank contributes the mechanical layer.
+
+
+## Non-Wankel rotary-combustion v1
+
+`RotaryCombustionSourceFactory` is the generic authoring primitive for rotary
+combustion mechanisms that explicitly are **not** Wankel engines.
+
+Inputs are explicit:
+
+- mechanism identity;
+- working-element/chamber/vane/lobe/piston count;
+- power events per output-shaft revolution;
+- maximum output-shaft RPM;
+- combustion class.
+
+The source derives event-train shaft ratio from:
+
+```text
+power_events_per_output_revolution / working_element_count
+```
+
+and records that value in metadata. The factory never infers Wankel rotor
+kinematics.
+
+This primitive covers current PR #193 FREE Concept Car 003 mechanisms such as:
+
+- articulated multi-chamber rotary;
+- inverse-trochoid rotary;
+- vane rotary combustion;
+- gerotor combustion;
+- orbital-piston rotary combustion;
+- nutating-disc combustion;
+- toroidal opposed rotary combustion.
+
+A dual articulated rotary power unit can be represented by two
+`rotary-combustion` child graphs combined through `multi-source-composite`
+once its explicit phase offset is present in source data.
+
+CLI:
+
+```text
+ESRecorder.Cli render-rotary-combustion --name gerotor7 --mechanism "seven-lobe gerotor combustion" --elements 7 --power-events-per-output-revolution 7 --max-rpm 7500 --output recordings/gerotor7 --rpm 1200:48000,7000:48000 --throttle 0,100 --length 5
+```
+
+The recipe materializer must provide an explicit working-element count and event
+rate. If the catalog text does not determine those values, the variant must
+remain blocked rather than being mapped to Wankel or another generic rotary.
