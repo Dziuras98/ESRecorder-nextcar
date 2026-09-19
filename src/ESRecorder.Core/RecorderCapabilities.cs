@@ -53,7 +53,8 @@ public static class RecorderCapabilityCatalog
                     "electric-machine",
                     "multi-source-composite",
                     "fixed-firing-piston",
-                    "split-single-two-stroke"
+                    "split-single-two-stroke",
+                    "rotary-combustion"
                 ],
                 Features:
                 [
@@ -70,6 +71,7 @@ public static class RecorderCapabilityCatalog
                     "explicit-ignition-angle-table",
                     "cylinder-bank-assignment",
                     "paired-piston-phase-model",
+                    "non-wankel-rotary-combustion",
                     "harmonic-mechanical-layers",
                     "deterministic-noise",
                     "cross-platform-pcm16-wav-render"
@@ -77,7 +79,7 @@ public static class RecorderCapabilityCatalog
                 Notes:
                     "Native ESRecorder-nextcar event renderer. Wankel, multi-crank, two-stroke, opposed-piston, " +
                     "radial/cam-ring, axial-piston, free-piston, electric-machine, composite, explicit fixed-firing " +
-                    "banked piston and split-single sources are represented by explicit event/harmonic topology.")
+                    "banked piston, split-single and non-Wankel rotary-combustion sources are represented by explicit event/harmonic topology.")
         ],
         Guarantees:
         [

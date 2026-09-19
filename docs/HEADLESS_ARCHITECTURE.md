@@ -149,3 +149,14 @@ layers but do not double combustion events.
 
 Single-crank OPOC remains a supported specialization of the opposed-piston
 factory by setting crankshaft count to one.
+
+
+## Non-Wankel rotary-combustion primitive
+
+The event backend has a generic rotary-combustion factory for articulated,
+inverse-trochoid, vane, gerotor, orbital-piston, nutating-disc and toroidal
+opposed mechanisms. Working-element count and power-event rate are explicit
+authoring inputs. Wankel remains a distinct source family with its own factory.
+
+Multi-module rotary power units should use source-graph composition once module
+phase/speed data is explicit.
