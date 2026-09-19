@@ -129,10 +129,10 @@ public static class MultiCrankSourceFactory
             throw new ArgumentOutOfRangeException(
                 nameof(module),
                 $"Module {module.Name}: gain must be finite and in (0, 4].");
-        if (!double.IsFinite(module.MechanicalOrder) || module.MechanicalOrder is <= 0.0 or > 256.0)
+        if (!double.IsFinite(module.MechanicalOrder) || module.MechanicalOrder is <= 0.0 or > 128.0)
             throw new ArgumentOutOfRangeException(
                 nameof(module),
-                $"Module {module.Name}: mechanical order must be finite and in (0, 256].");
+                $"Module {module.Name}: mechanical order must be finite and in (0, 128].");
     }
 
     private static double Fractional(double value)
