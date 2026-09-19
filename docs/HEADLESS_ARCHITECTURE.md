@@ -160,3 +160,18 @@ authoring inputs. Wankel remains a distinct source family with its own factory.
 
 Multi-module rotary power units should use source-graph composition once module
 phase/speed data is explicit.
+
+
+## Thermal-fluid machine primitive
+
+External-combustion and turbomachinery authoring uses a separate
+`thermal-fluid-machine` source family rather than pretending a turbine or
+Stirling/steam pressure cycle is cylinder combustion.
+
+The primitive supports reciprocating pressure events, rotary expanders,
+continuous turbines and wave rotors. Continuous sources can omit event trains
+entirely and use blade/lobe/flow harmonic layers.
+
+ICE+turbocompound and multi-cycle thermal systems remain compositions of
+separate source graphs. Thermal/spool/boiler dynamics are not Unreal runtime
+dependencies; their response class is retained as offline authoring metadata.

@@ -336,3 +336,49 @@ ESRecorder.Cli render-rotary-combustion --name gerotor7 --mechanism "seven-lobe 
 The recipe materializer must provide an explicit working-element count and event
 rate. If the catalog text does not determine those values, the variant must
 remain blocked rather than being mapped to Wankel or another generic rotary.
+
+
+## Thermal-fluid machine v1
+
+`ThermalFluidMachineSourceFactory` is the reusable authoring primitive for
+external-combustion and turbomachinery sources whose acoustic identity is driven
+by pressure/flow machinery rather than cylinder combustion.
+
+Supported machine classes:
+
+- `reciprocating-external-combustion` — Stirling, Ericsson and steam-piston
+  expanders with explicit pressure-event cadence;
+- `rotary-expander` — volumetric steam/working-fluid expanders;
+- `turbine` — gas, steam, closed-Brayton, sCO2 and free-power turbines;
+- `wave-rotor` — pressure-wave rotors/exchangers.
+
+Authoring inputs are explicit:
+
+- mechanism identity;
+- working-element count;
+- pressure events per reference-shaft revolution (zero is valid for continuous
+  turbines/wave-rotor harmonic sources);
+- maximum reference RPM;
+- blade/lobe passage order;
+- working fluid;
+- thermal response class.
+
+Continuous turbine/wave-rotor sources may contain no periodic event train at all
+and remain valid through shaft/blade/flow harmonic layers.
+
+The factory intentionally does not simulate thermodynamic state or boiler/spool
+dynamics at runtime. `thermal_response_class` is provenance/authoring metadata
+for later bank selection and transient work.
+
+### Compound systems
+
+ICE+turbocompound, free-piston+free-turbine, Brayton+bottoming-cycle and similar
+systems are represented by multiple child graphs combined through
+`multi-source-composite`. A power turbine must not be hidden inside the firing
+order of the piston engine.
+
+CLI:
+
+```text
+ESRecorder.Cli render-thermal-fluid --name steam-turbine --machine-class turbine --mechanism "two-stage steam turbine" --elements 2 --pressure-events-per-reference-revolution 0 --max-rpm 18000 --blade-lobe-order 32 --working-fluid steam --thermal-response slow-thermal --output recordings/steam-turbine --rpm 3000:48000,16000:48000 --throttle 0,100 --length 5
+```
