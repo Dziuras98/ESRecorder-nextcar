@@ -48,6 +48,16 @@ internal static class Program
                     return RenderTwoStroke(options, cancellation.Token);
                 case "render-opposed-piston":
                     return RenderOpposedPiston(options, cancellation.Token);
+                case "render-radial-cam-ring":
+                    return RenderRadialCamRing(options, cancellation.Token);
+                case "render-axial-piston":
+                    return RenderAxialPiston(options, cancellation.Token);
+                case "render-free-piston":
+                    return RenderFreePiston(options, cancellation.Token);
+                case "render-electric":
+                    return RenderElectricMachine(options, cancellation.Token);
+                case "render-composite":
+                    return RenderComposite(options, cancellation.Token);
                 case "render-event-source":
                     return RenderEventSource(options, cancellation.Token);
                 default:
@@ -202,6 +212,88 @@ internal static class Program
         return RenderEventBank(source, options, cancellationToken);
     }
 
+    private static int RenderRadialCamRing(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var topology = GetRequired(options, "topology");
+        var defaultCamRings = string.Equals(topology, "dual-cam-ring", StringComparison.OrdinalIgnoreCase)
+            ? "2"
+            : "1";
+
+        var source = RadialCamRingSourceFactory.Create(
+            Get(options, "name", topology),
+            topology,
+            ParseRangeInt(GetRequired(options, "elements"), "elements", 1, 128),
+            ParsePositiveDouble(GetRequired(options, "displacement"), "displacement"),
+            ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 200, 30000),
+            ParseRangeInt(Get(options, "cycle-revolutions", "2"), "cycle-revolutions", 1, 8),
+            ParseRangeInt(Get(options, "cam-rings", defaultCamRings), "cam-rings", 1, 8),
+            ParseRangeInt(Get(options, "cam-lobes", "1"), "cam-lobes", 1, 64),
+            Get(options, "combustion", "petrol"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderAxialPiston(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = AxialPistonSourceFactory.Create(
+            Get(options, "name", "axial-piston"),
+            ParseRangeInt(GetRequired(options, "pistons"), "pistons", 1, 128),
+            ParsePositiveDouble(GetRequired(options, "displacement"), "displacement"),
+            ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 300, 30000),
+            ParseRangeInt(Get(options, "cycle-revolutions", "2"), "cycle-revolutions", 1, 8),
+            Get(options, "mechanism", "swashplate"),
+            Get(options, "combustion", "petrol"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderFreePiston(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = FreePistonSourceFactory.Create(
+            Get(options, "name", "free-piston"),
+            ParseRangeInt(GetRequired(options, "modules"), "modules", 1, 32),
+            ParsePositiveDouble(GetRequired(options, "displacement-equivalent"), "displacement-equivalent"),
+            ParseRangeInt(GetRequired(options, "max-rate"), "max-rate", 100, 30000),
+            Get(options, "generator", "linear-generator"),
+            Get(options, "combustion", "petrol"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderElectricMachine(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = ElectricMachineSourceFactory.Create(
+            Get(options, "name", "electric-machine"),
+            ParseRangeInt(GetRequired(options, "pole-pairs"), "pole-pairs", 1, 64),
+            ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 100, 100000),
+            ParseRangeInt(Get(options, "machines", "1"), "machines", 1, 16),
+            Get(options, "machine-type", "permanent-magnet"),
+            ParseRangeInt(Get(options, "slot-order", "12"), "slot-order", 1, 256),
+            ParseRangeInt(Get(options, "inverter-order", "24"), "inverter-order", 1, 256));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderComposite(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = CompositeSourceFactory.Create(
+            Get(options, "name", "composite"),
+            ParseCompositeComponents(GetRequired(options, "sources")),
+            Get(options, "family", "multi-source-composite"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
     private static int RenderEventSource(
         IReadOnlyDictionary<string, string> options,
         CancellationToken cancellationToken)
@@ -296,6 +388,41 @@ internal static class Program
                 ParsePositiveInt(components[1], "frequency"));
         })
         .ToArray();
+
+    private static IReadOnlyList<CompositeSourceComponent> ParseCompositeComponents(string value)
+    {
+        var components = value
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(entry =>
+            {
+                var fields = entry.Split('|', StringSplitOptions.TrimEntries);
+                if (fields.Length is < 2 or > 5)
+                {
+                    throw new ArgumentException(
+                        $"Composite source must use name|source-path[|speed-ratio[|gain[|phase-offset-revolutions]]] syntax: {entry}");
+                }
+
+                var name = fields[0];
+                var source = AcousticEventSourceSerializer.Read(Path.GetFullPath(fields[1]));
+                var speedRatio = fields.Length >= 3
+                    ? ParsePositiveDouble(fields[2], "component-speed-ratio")
+                    : 1.0;
+                var gain = fields.Length >= 4
+                    ? ParsePositiveDouble(fields[3], "component-gain")
+                    : 1.0;
+                var phase = fields.Length >= 5
+                    ? ParseFiniteDouble(fields[4], "component-phase-offset")
+                    : 0.0;
+
+                return new CompositeSourceComponent(name, source, speedRatio, gain, phase);
+            })
+            .ToArray();
+
+        if (components.Length is < 2 or > 16)
+            throw new ArgumentException("--sources must define between 2 and 16 source components.");
+
+        return components;
+    }
 
     private static IReadOnlyList<MultiCrankModuleSpec> ParseMultiCrankModules(string value)
     {
@@ -448,6 +575,66 @@ internal static class Program
                 --combustion diesel
                 --output recordings/op6
                 --rpm 1000:44100,4000:44100
+                --throttle 0,100
+                --length 5
+
+            Render radial or cam-ring topology:
+              ESRecorder.Cli render-radial-cam-ring
+                --name radial-7
+                --topology radial-piston
+                --elements 7
+                --displacement 7.0
+                --max-rpm 3200
+                --cycle-revolutions 2
+                --output recordings/radial-7
+                --rpm 800:44100,2800:44100
+                --throttle 0,100
+                --length 5
+
+            Render an axial-piston source:
+              ESRecorder.Cli render-axial-piston
+                --name axial-12
+                --pistons 12
+                --displacement 2.0
+                --max-rpm 9500
+                --cycle-revolutions 2
+                --mechanism swashplate
+                --output recordings/axial-12
+                --rpm 1500:44100,8500:44100
+                --throttle 0,100
+                --length 5
+
+            Render a free-piston generator source:
+              ESRecorder.Cli render-free-piston
+                --name fp4
+                --modules 4
+                --displacement-equivalent 4.0
+                --max-rate 3600
+                --generator linear-generator
+                --output recordings/fp4
+                --rpm 800:44100,3200:44100
+                --throttle 0,100
+                --length 5
+
+            Render an electric machine source:
+              ESRecorder.Cli render-electric
+                --name dual-motor
+                --pole-pairs 4
+                --max-rpm 18000
+                --machines 2
+                --slot-order 24
+                --inverter-order 48
+                --output recordings/dual-motor
+                --rpm 1000:44100,16000:44100
+                --throttle 0,100
+                --length 5
+
+            Compose existing event-source JSON files:
+              ESRecorder.Cli render-composite
+                --name rotary-hybrid
+                --sources "ice|recordings/rotary/event-source.json|1|1|0;motor|recordings/motor/event-source.json|2.5|0.55|0.125"
+                --output recordings/rotary-hybrid
+                --rpm 1500:44100,8500:44100
                 --throttle 0,100
                 --length 5
 
