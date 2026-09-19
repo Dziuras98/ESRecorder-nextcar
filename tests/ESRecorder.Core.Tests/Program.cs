@@ -278,6 +278,10 @@ internal static class Program
         AssertEqual(8, source.HarmonicLayers.Length, "electric-machine harmonic layer count");
         AssertEqual("2", source.Metadata["machine_count"], "electric-machine count metadata");
         AssertEqual("4", source.Metadata["electrical_fundamental_order"], "electric fundamental order metadata");
+        AssertEqual(
+            "deterministic_golden_angle_per_machine",
+            source.Metadata["acoustic_phase_policy"],
+            "electric multi-machine phase policy");
     }
 
     private static void TestCompositeTopology()
@@ -308,7 +312,13 @@ internal static class Program
 
         try
         {
-            var electric = ElectricMachineSourceFactory.Create("render-electric", 4, 18000);
+            var electric = ElectricMachineSourceFactory.Create(
+                "render-electric",
+                polePairs: 4,
+                maxRpm: 18000,
+                machineCount: 2,
+                slotOrder: 24,
+                inverterOrder: 48);
             var rotary = WankelSourceFactory.Create("render-rotary", 2, 1.3, 9000);
             var sources = new[]
             {
