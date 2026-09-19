@@ -26,6 +26,8 @@ internal static class Program
             TestSplitSingleTopology();
             TestSingleCrankOpocTopology();
             TestNonWankelRotaryTopology();
+            TestThermalFluidTopology();
+            TestThermalCompoundComposition();
             TestAcceptedFamilyRenderers();
             TestAdvancedTopologyRenderers();
             TestNewTopologyRenderers();
@@ -107,7 +109,8 @@ internal static class Program
             "multi-source-composite",
             "fixed-firing-piston",
             "split-single-two-stroke",
-            "rotary-combustion"
+            "rotary-combustion",
+            "thermal-fluid-machine"
         })
         {
             AssertTrue(
@@ -119,7 +122,10 @@ internal static class Program
             "explicit-ignition-angle-table",
             "cylinder-bank-assignment",
             "paired-piston-phase-model",
-            "non-wankel-rotary-combustion"
+            "non-wankel-rotary-combustion",
+            "thermal-pressure-event-model",
+            "continuous-turbomachinery-harmonics",
+            "thermal-response-metadata"
         })
         {
             AssertTrue(
@@ -461,6 +467,118 @@ internal static class Program
         AssertEqual("8", toroidal.Metadata["power_events_per_output_revolution"], "toroidal event rate");
     }
 
+    private static void TestThermalFluidTopology()
+    {
+        var stirling = ThermalFluidMachineSourceFactory.Create(
+            "stirling-six",
+            "reciprocating-external-combustion",
+            "six-cylinder double-acting Stirling",
+            workingElementCount: 6,
+            pressureEventsPerReferenceRevolution: 6.0,
+            maxReferenceRpm: 4500,
+            bladeOrLobeOrder: 6,
+            workingFluid: "helium",
+            thermalResponseClass: "slow-thermal");
+
+        AssertEqual("thermal-fluid-machine", stirling.Family, "Stirling source family");
+        AssertEqual(1, stirling.EventTrains.Length, "Stirling pressure event train count");
+        AssertEqual(6, stirling.EventTrains[0].EventPhases.Length, "Stirling working element event count");
+        AssertEqual(
+            "reciprocating-external-combustion",
+            stirling.Metadata["machine_class"],
+            "Stirling machine class");
+        AssertEqual("helium", stirling.Metadata["working_fluid"], "Stirling working fluid");
+
+        var rotarySteam = ThermalFluidMachineSourceFactory.Create(
+            "rotary-steam",
+            "rotary-expander",
+            "rotary steam expander",
+            workingElementCount: 4,
+            pressureEventsPerReferenceRevolution: 4.0,
+            maxReferenceRpm: 8000,
+            bladeOrLobeOrder: 4,
+            workingFluid: "steam",
+            thermalResponseClass: "boiler-lag");
+
+        AssertEqual(1, rotarySteam.EventTrains.Length, "rotary steam event train count");
+        AssertEqual(
+            "4",
+            rotarySteam.Metadata["pressure_events_per_reference_revolution"],
+            "rotary steam pressure event rate");
+
+        var turbine = ThermalFluidMachineSourceFactory.Create(
+            "steam-turbine",
+            "turbine",
+            "two-stage steam turbine",
+            workingElementCount: 2,
+            pressureEventsPerReferenceRevolution: 0.0,
+            maxReferenceRpm: 18000,
+            bladeOrLobeOrder: 32,
+            workingFluid: "steam",
+            thermalResponseClass: "slow-thermal");
+
+        AssertEqual(0, turbine.EventTrains.Length, "continuous turbine has no discrete pressure event train");
+        AssertEqual(4, turbine.HarmonicLayers.Length, "turbine harmonic layer count");
+        AssertEqual(
+            "0",
+            turbine.Metadata["pressure_events_per_reference_revolution"],
+            "turbine zero event metadata");
+
+        var waveRotor = ThermalFluidMachineSourceFactory.Create(
+            "wave-rotor",
+            "wave-rotor",
+            "wave-rotor pressure exchanger",
+            workingElementCount: 1,
+            pressureEventsPerReferenceRevolution: 0.0,
+            maxReferenceRpm: 12000,
+            bladeOrLobeOrder: 12,
+            workingFluid: "exhaust-gas",
+            thermalResponseClass: "fast-pressure-wave");
+
+        AssertEqual("wave-rotor", waveRotor.Metadata["machine_class"], "wave-rotor class");
+        AssertEqual(0, waveRotor.EventTrains.Length, "wave rotor can be continuous harmonic source");
+    }
+
+    private static void TestThermalCompoundComposition()
+    {
+        var piston = FixedFiringPistonSourceFactory.CreateEven(
+            "compound-v8",
+            cylinderCount: 8,
+            bankCount: 2,
+            displacementLitres: 4.0,
+            maxRpm: 7000,
+            cylinderBankAssignments: new[] { 0, 1, 0, 1, 0, 1, 0, 1 },
+            layout: "V8",
+            firingLabel: "EVEN");
+
+        var turbine = ThermalFluidMachineSourceFactory.Create(
+            "power-turbine",
+            "turbine",
+            "mechanically coupled power turbine",
+            workingElementCount: 1,
+            pressureEventsPerReferenceRevolution: 0.0,
+            maxReferenceRpm: 50000,
+            bladeOrLobeOrder: 24,
+            workingFluid: "exhaust-gas",
+            thermalResponseClass: "spool-lag");
+
+        var composite = CompositeSourceFactory.Create(
+            "v8-turbocompound",
+            new[]
+            {
+                new CompositeSourceComponent("ice", piston, 1.0, 1.0),
+                new CompositeSourceComponent("power-turbine", turbine, 4.0, 0.35, 0.07)
+            });
+
+        AssertEqual("multi-source-composite", composite.Family, "thermal compound composite family");
+        AssertTrue(
+            composite.Metadata["component_families"].Contains("fixed-firing-piston", StringComparison.Ordinal),
+            "thermal compound contains piston child");
+        AssertTrue(
+            composite.Metadata["component_families"].Contains("thermal-fluid-machine", StringComparison.Ordinal),
+            "thermal compound contains turbine child");
+    }
+
     private static void TestAcceptedFamilyRenderers()
     {
         var root = Path.Combine(Path.GetTempPath(), $"esrecorder-accepted-family-tests-{Guid.NewGuid():N}");
@@ -506,14 +624,34 @@ internal static class Program
                     6500,
                     1,
                     0.0,
-                    "petrol")
-,
+                    "petrol"),
                 RotaryCombustionSourceFactory.Create(
                     "render-gerotor-seven",
                     "seven-lobe gerotor combustion",
                     7,
                     7.0,
-                    7500)            };
+                    7500),
+                ThermalFluidMachineSourceFactory.Create(
+                    "render-stirling-six",
+                    "reciprocating-external-combustion",
+                    "six-cylinder Stirling",
+                    6,
+                    6.0,
+                    4500,
+                    6,
+                    "helium",
+                    "slow-thermal"),
+                ThermalFluidMachineSourceFactory.Create(
+                    "render-steam-turbine",
+                    "turbine",
+                    "two-stage steam turbine",
+                    2,
+                    0.0,
+                    18000,
+                    32,
+                    "steam",
+                    "slow-thermal")
+            };
 
             foreach (var source in sources)
             {
