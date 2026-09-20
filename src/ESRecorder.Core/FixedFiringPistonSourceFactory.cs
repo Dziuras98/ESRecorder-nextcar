@@ -15,12 +15,14 @@ public static class FixedFiringPistonSourceFactory
         int cycleDegrees = 720,
         string layout = "fixed-firing-piston",
         string firingLabel = "explicit",
-        string combustionClass = "petrol")
+        string combustionClass = "petrol",
+        string combustionAcousticProfile = "default")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(layout);
         ArgumentException.ThrowIfNullOrWhiteSpace(firingLabel);
         ArgumentException.ThrowIfNullOrWhiteSpace(combustionClass);
+        ArgumentException.ThrowIfNullOrWhiteSpace(combustionAcousticProfile);
         ArgumentNullException.ThrowIfNull(ignitionAnglesDegrees);
         ArgumentNullException.ThrowIfNull(cylinderBankAssignments);
 
@@ -55,8 +57,11 @@ public static class FixedFiringPistonSourceFactory
                 nameof(cylinderBankAssignments));
         }
 
+        var tuning = CombustionAcousticProfileCatalog.Resolve(
+            combustionAcousticProfile,
+            combustionClass);
         var cycleRevolutions = cycleDegrees / 360.0;
-        var gainScale = 1.0 / Math.Sqrt(cylinderCount);
+        var gainScale = (1.0 / Math.Sqrt(cylinderCount)) * tuning.EventGainMultiplier;
         var eventTrains = new List<PeriodicEventTrainDefinition>(cylinderCount);
         var normalizedAngles = new double[cylinderCount];
         var bankCylinderCounts = new int[bankCount];
@@ -89,11 +94,13 @@ public static class FixedFiringPistonSourceFactory
                 ShaftRatio = 1.0 / cycleRevolutions,
                 EventPhases = [normalizedAngle / cycleDegrees],
                 Gain = gainScale,
-                DecayMilliseconds = 4.6 + (0.08 * Math.Min(cylinderCount, 24)),
-                ResonanceBaseHz = 120.0 + (9.0 * bank),
+                DecayMilliseconds =
+                    (4.6 + (0.08 * Math.Min(cylinderCount, 24))) * tuning.DecayMultiplier,
+                ResonanceBaseHz =
+                    (120.0 + (9.0 * bank)) * tuning.ResonanceMultiplier,
                 ResonanceOrder = Math.Max(1.0, cylinderCount / cycleRevolutions),
-                NoiseMix = combustionClass.Contains("diesel", StringComparison.OrdinalIgnoreCase) ? 0.38 : 0.27,
-                ThrottleResponse = 0.72
+                NoiseMix = tuning.NoiseMix,
+                ThrottleResponse = tuning.ThrottleResponse
             });
         }
 
@@ -129,7 +136,7 @@ public static class FixedFiringPistonSourceFactory
                 Name = $"bank-{bank + 1}-exhaust-order",
                 ShaftRatio = 1.0,
                 Order = Math.Max(1.0, bankCylinderCounts[bank] / cycleRevolutions),
-                Gain = 0.055 / Math.Sqrt(bankCount),
+                Gain = (0.055 / Math.Sqrt(bankCount)) * tuning.ExhaustGainMultiplier,
                 PhaseRadians = (2.0 * Math.PI * bank) / bankCount,
                 ThrottleResponse = 0.58
             });
@@ -139,7 +146,7 @@ public static class FixedFiringPistonSourceFactory
         {
             Id = id,
             Family = "fixed-firing-piston",
-            MasterGain = 0.82,
+            MasterGain = 0.82 * tuning.MasterGainMultiplier,
             EventTrains = eventTrains.ToArray(),
             HarmonicLayers = harmonicLayers.ToArray(),
             Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -157,6 +164,10 @@ public static class FixedFiringPistonSourceFactory
                 ["layout"] = layout,
                 ["firing_label"] = firingLabel,
                 ["combustion_class"] = combustionClass,
+                ["combustion_acoustic_profile"] = tuning.Id,
+                ["combustion_acoustic_profile_contract"] =
+                    CombustionAcousticProfileCatalog.ContractId,
+                ["combustion_acoustic_profile_note"] = tuning.Notes,
                 ["ignition_angles_degrees"] =
                     string.Join(",", normalizedAngles.Select(static angle =>
                         angle.ToString("0.###", CultureInfo.InvariantCulture))),
@@ -182,7 +193,8 @@ public static class FixedFiringPistonSourceFactory
         int cycleDegrees = 720,
         string layout = "fixed-firing-piston",
         string firingLabel = "EVEN",
-        string combustionClass = "petrol")
+        string combustionClass = "petrol",
+        string combustionAcousticProfile = "default")
     {
         if (cylinderCount is < 1 or > 128)
             throw new ArgumentOutOfRangeException(nameof(cylinderCount), "Cylinder count must be between 1 and 128.");
@@ -202,7 +214,8 @@ public static class FixedFiringPistonSourceFactory
             cycleDegrees,
             layout,
             firingLabel,
-            combustionClass);
+            combustionClass,
+            combustionAcousticProfile);
     }
 
     private static double NormalizeDegrees(double angle, int cycleDegrees)

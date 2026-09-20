@@ -23,6 +23,7 @@ internal static class Program
             TestElectricMachineTopology();
             TestCompositeTopology();
             TestFixedFiringPistonTopology();
+            TestCombustionAcousticProfiles();
             TestSplitSingleTopology();
             TestSingleCrankOpocTopology();
             TestNonWankelRotaryTopology();
@@ -125,7 +126,8 @@ internal static class Program
             "non-wankel-rotary-combustion",
             "thermal-pressure-event-model",
             "continuous-turbomachinery-harmonics",
-            "thermal-response-metadata"
+            "thermal-response-metadata",
+            "combustion-acoustic-profiles"
         })
         {
             AssertTrue(
@@ -386,6 +388,84 @@ internal static class Program
         AssertEqual(15, fan15.EventTrains.Length, "pentafan-15 event train count");
         AssertEqual("5", fan15.Metadata["bank_count"], "pentafan-15 bank count");
         AssertEqual("7.5", fan15.Metadata["power_events_per_output_revolution"], "pentafan-15 event rate");
+    }
+
+    private static void TestCombustionAcousticProfiles()
+    {
+        var assignments = new[] { 0, 1, 0, 1, 0, 1 };
+        var angles = Enumerable.Range(0, 6).Select(index => index * 120.0).ToArray();
+
+        var conventional = FixedFiringPistonSourceFactory.Create(
+            "profile-conventional",
+            6,
+            2,
+            3.0,
+            8500,
+            angles,
+            assignments,
+            720,
+            "V6",
+            "EVEN",
+            "petrol",
+            "conventional-spark");
+
+        var tji = FixedFiringPistonSourceFactory.Create(
+            "profile-tji",
+            6,
+            2,
+            3.0,
+            8500,
+            angles,
+            assignments,
+            720,
+            "V6",
+            "EVEN",
+            "petrol",
+            "turbulent-jet-ignition");
+
+        AssertEqual(
+            CombustionAcousticProfileCatalog.ContractId,
+            tji.Metadata["combustion_acoustic_profile_contract"],
+            "combustion acoustic profile contract");
+        AssertEqual(
+            "turbulent-jet-ignition",
+            tji.Metadata["combustion_acoustic_profile"],
+            "TJI acoustic profile metadata");
+        AssertEqual(
+            "conventional-spark",
+            conventional.Metadata["combustion_acoustic_profile"],
+            "conventional acoustic profile metadata");
+        AssertTrue(
+            Math.Abs(tji.EventTrains[0].DecayMilliseconds - conventional.EventTrains[0].DecayMilliseconds) > 0.01,
+            "combustion profiles alter event decay");
+        AssertTrue(
+            Math.Abs(tji.EventTrains[0].NoiseMix - conventional.EventTrains[0].NoiseMix) > 0.01,
+            "combustion profiles alter noise texture");
+
+        var dieselDefault = FixedFiringPistonSourceFactory.Create(
+            "profile-diesel-default",
+            4,
+            1,
+            2.0,
+            5000,
+            new[] { 0.0, 180.0, 360.0, 540.0 },
+            new[] { 0, 0, 0, 0 },
+            combustionClass: "diesel");
+        AssertEqual(
+            "diesel-ci",
+            dieselDefault.Metadata["combustion_acoustic_profile"],
+            "diesel default acoustic profile");
+
+        AssertTrue(
+            CombustionAcousticProfileCatalog.KnownProfileIds.Contains(
+                "hcci",
+                StringComparer.OrdinalIgnoreCase),
+            "HCCI acoustic profile is registered");
+        AssertTrue(
+            CombustionAcousticProfileCatalog.KnownProfileIds.Contains(
+                "rcci",
+                StringComparer.OrdinalIgnoreCase),
+            "RCCI acoustic profile is registered");
     }
 
     private static void TestSplitSingleTopology()

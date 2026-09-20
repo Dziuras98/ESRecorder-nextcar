@@ -241,7 +241,8 @@ internal static class Program
             ParseRangeInt(Get(options, "cycle-degrees", "720"), "cycle-degrees", 360, 2880),
             Get(options, "layout", "fixed-firing-piston"),
             Get(options, "firing-label", "explicit"),
-            Get(options, "combustion", "petrol"));
+            Get(options, "combustion", "petrol"),
+            Get(options, "combustion-profile", "default"));
 
         return RenderEventBank(source, options, cancellationToken);
     }
@@ -721,6 +722,7 @@ internal static class Program
                 --bank-assignments 0,1,0,1,0,1
                 --layout V6
                 --firing-label odd-fire
+                --combustion-profile turbulent-jet-ignition
                 --output recordings/odd-fire-v6
                 --rpm 1200:48000,7000:48000
                 --throttle 0,100

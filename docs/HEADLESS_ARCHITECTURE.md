@@ -175,3 +175,13 @@ entirely and use blade/lobe/flow harmonic layers.
 ICE+turbocompound and multi-cycle thermal systems remain compositions of
 separate source graphs. Thermal/spool/boiler dynamics are not Unreal runtime
 dependencies; their response class is retained as offline authoring metadata.
+
+
+## Combustion acoustic profile layer
+
+Fixed-firing mechanical topology and combustion acoustic texture are separate.
+The firing graph remains authoritative for event timing. A named
+`nextcar-combustion-acoustic-profile-v1` profile can then tune pulse decay,
+resonance, noise and exhaust-layer balance. This keeps EGT-style
+Otto/lean/HCCI/SPCCI/pre-chamber/RCCI variants distinct without inventing a new
+mechanical source family.

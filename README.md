@@ -150,3 +150,15 @@ render-thermal-fluid
 This authoring primitive covers reciprocating Stirling/Ericsson/steam machines,
 rotary expanders, turbines and wave rotors. Compound systems should compose
 thermal-fluid and combustion child graphs through `render-composite`.
+
+
+## Combustion acoustic profiles
+
+`render-fixed-firing-piston` accepts `--combustion-profile`. Named profiles
+allow PR #193 variants with the same cylinder/firing topology but different
+combustion strategies to receive distinct deterministic pulse/noise/resonance
+authoring textures without changing their mechanical event geometry.
+
+The profile contract is `nextcar-combustion-acoustic-profile-v1`; unknown
+profile ids fail closed. The tuning is an offline acoustic authoring model, not
+a thermodynamic simulation.

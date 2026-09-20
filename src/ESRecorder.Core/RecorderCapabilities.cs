@@ -76,6 +76,7 @@ public static class RecorderCapabilityCatalog
                     "thermal-pressure-event-model",
                     "continuous-turbomachinery-harmonics",
                     "thermal-response-metadata",
+                    "combustion-acoustic-profiles",
                     "harmonic-mechanical-layers",
                     "deterministic-noise",
                     "cross-platform-pcm16-wav-render"
@@ -83,7 +84,8 @@ public static class RecorderCapabilityCatalog
                 Notes:
                     "Native ESRecorder-nextcar event renderer. Wankel, multi-crank, two-stroke, opposed-piston, " +
                     "radial/cam-ring, axial-piston, free-piston, electric-machine, composite, explicit fixed-firing " +
-                    "banked piston, split-single, non-Wankel rotary-combustion and thermal-fluid machines are represented by explicit event/harmonic topology.")
+                    "banked piston, split-single, non-Wankel rotary-combustion and thermal-fluid machines are represented by explicit event/harmonic topology. " +
+                    "Fixed-firing piston sources can additionally select named combustion acoustic profiles.")
         ],
         Guarantees:
         [
