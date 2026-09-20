@@ -411,3 +411,38 @@ ESRecorder.Cli render-fixed-firing-piston ... --combustion-profile turbulent-jet
 ```
 
 Unknown profile ids fail closed.
+
+
+## Coupled piston-cycle v1
+
+`CoupledPistonCycleSourceFactory` represents piston architectures where
+combustion cylinders and secondary compression/expansion cylinders perform
+different roles on one coupled cycle.
+
+The source contains two independent periodic trains:
+
+- `combustion-events` — pressure release from actual combustion cylinders;
+- `secondary-pressure-events` — compression or low-pressure expansion events.
+
+The secondary train is not counted as additional combustion. Inputs are explicit:
+
+- cycle class;
+- combustion-cylinder count;
+- secondary-cylinder count;
+- secondary pressure events per cycle;
+- displacement;
+- maximum RPM;
+- cycle revolutions;
+- secondary phase offset;
+- optional pneumatic-accumulator acoustic layer.
+
+This supports the current PR #193 concepts:
+
+- ASTREO SC20: four compression + four power cylinders;
+- ASTREO SC20-AH: the same split-cycle core plus pneumatic accumulator;
+- Type4 FS24T3: two high-pressure combustion cylinders exhausting into one
+  low-pressure expansion cylinder, with two secondary expansion events per cycle.
+
+Phase values used by Nextcar are offline acoustic-authoring profiles unless the
+catalog explicitly provides mechanical phasing. They are not claims of exact
+crank geometry or thermodynamic timing.
