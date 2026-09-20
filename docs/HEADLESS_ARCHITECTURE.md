@@ -193,3 +193,12 @@ Split-cycle and five-stroke engines use `coupled-piston-cycle`. Combustion and
 secondary compression/expansion pressure trains remain separate, with optional
 pneumatic-accumulator harmonics. This avoids treating non-combusting compressor
 or expansion cylinders as ordinary firing cylinders.
+
+
+## Electric-machine timbre identity
+
+Electric-machine source graphs carry a versioned machine-type timbre profile in
+addition to pole/slot/inverter orders. This keeps distinct motor classes
+audibly distinct when the authoring catalog intentionally reuses the same
+electrical-order profile. The additional character harmonic remains an offline
+authoring abstraction and does not introduce an electromagnetic runtime model.
