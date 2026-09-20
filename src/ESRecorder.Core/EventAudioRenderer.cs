@@ -16,6 +16,7 @@ public static class EventAudioRenderer
 
         var stopwatch = Stopwatch.StartNew();
         var sampleCount = checked(request.SampleRate * request.LengthSeconds);
+        var floatingSamples = new double[sampleCount];
         var samples = new short[sampleCount];
         var rpmHz = request.Rpm / 60.0;
         var throttle = request.Throttle / 100.0;
@@ -73,6 +74,19 @@ public static class EventAudioRenderer
 
             value *= source.MasterGain;
 
+            var limited = Math.Tanh(value);
+            if (!double.IsFinite(limited))
+                throw new InvalidOperationException($"Non-finite renderer sample at index {index}.");
+
+            floatingSamples[index] = limited;
+        }
+
+        ApplyDcBlock(floatingSamples, request.SampleRate);
+
+        for (var index = 0; index < sampleCount; index++)
+        {
+            var value = floatingSamples[index];
+
             if (fadeSamples > 0)
             {
                 if (index < fadeSamples)
@@ -81,15 +95,15 @@ public static class EventAudioRenderer
                     value *= (sampleCount - 1 - index) / (double)fadeSamples;
             }
 
-            var limited = Math.Tanh(value);
-            if (!double.IsFinite(limited))
-                throw new InvalidOperationException($"Non-finite renderer sample at index {index}.");
+            if (!double.IsFinite(value))
+                throw new InvalidOperationException($"Non-finite post-filter sample at index {index}.");
 
-            var absolute = Math.Abs(limited);
+            var bounded = Math.Clamp(value, -1.0, 1.0);
+            var absolute = Math.Abs(bounded);
             peak = Math.Max(peak, absolute);
-            sumSquares += limited * limited;
+            sumSquares += bounded * bounded;
             samples[index] = (short)Math.Clamp(
-                Math.Round(limited * short.MaxValue),
+                Math.Round(bounded * short.MaxValue),
                 short.MinValue,
                 short.MaxValue);
         }
@@ -150,6 +164,36 @@ public static class EventAudioRenderer
 
         var position = (frequency - rolloffStart) / (nyquist - rolloffStart);
         return 0.5 * (1.0 + Math.Cos(Math.PI * position));
+    }
+
+    private static void ApplyDcBlock(double[] samples, int sampleRate)
+    {
+        if (samples.Length == 0)
+            return;
+
+        const double cutoffHz = 2.0;
+        var coefficient = Math.Exp((-2.0 * Math.PI * cutoffHz) / sampleRate);
+        var previousInput = samples[0];
+        var previousOutput = 0.0;
+
+        // Prime the one-pole state with one deterministic block repetition.
+        // This removes the filter startup transient from the authored clip while
+        // keeping the actual render deterministic for identical input.
+        foreach (var input in samples)
+        {
+            var output = input - previousInput + (coefficient * previousOutput);
+            previousInput = input;
+            previousOutput = output;
+        }
+
+        for (var index = 0; index < samples.Length; index++)
+        {
+            var input = samples[index];
+            var output = input - previousInput + (coefficient * previousOutput);
+            samples[index] = output;
+            previousInput = input;
+            previousOutput = output;
+        }
     }
 
     private static double Fractional(double value) => value - Math.Floor(value);

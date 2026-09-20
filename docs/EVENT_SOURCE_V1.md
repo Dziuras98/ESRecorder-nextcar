@@ -466,3 +466,27 @@ a constant offset.
 
 The band-limit is an authoring/rendering safeguard. It does not claim that the
 underlying physical source stops producing ultrasonic content.
+
+
+## DC blocking and clip boundary
+
+After nonlinear limiting, `event-source-v1` applies a deterministic one-pole
+high-pass/DC-block stage with a 2 Hz cutoff before the final clip fade.
+
+The filter state is primed by one invisible repetition of the deterministic
+render block before samples are written. This prevents the filter's startup
+transient from becoming part of the authored clip. The final fade is applied
+after DC blocking, so the first and last PCM samples remain zero.
+
+The cutoff is intentionally far below the normal audible engine band. Its
+purpose is to remove non-acoustic pressure/DC bias from asymmetric event
+envelopes without materially changing low-order engine cadence.
+
+A regression renders a canonical inline-four at 7200 RPM / full throttle and
+requires:
+
+- non-zero audible output;
+- absolute PCM mean below 0.005;
+- deterministic output for identical inputs.
+
+This stage complements, rather than replaces, Nyquist band-limiting.

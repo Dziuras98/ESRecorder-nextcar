@@ -32,6 +32,7 @@ internal static class Program
             TestThermalCompoundComposition();
             TestAuxiliaryMachineTopology();
             TestRendererBandLimitsAliasedHarmonics();
+            TestRendererBlocksDcBias();
             TestAcceptedFamilyRenderers();
             TestAdvancedTopologyRenderers();
             TestNewTopologyRenderers();
@@ -132,6 +133,7 @@ internal static class Program
             "continuous-turbomachinery-harmonics",
             "thermal-response-metadata",
             "nyquist-bandlimited-harmonics",
+            "dc-blocked-pcm",
             "coupled-primary-secondary-pressure-trains",
             "pneumatic-accumulator-acoustic-layer",
             "combustion-acoustic-profiles"
@@ -841,6 +843,54 @@ internal static class Program
 
             var mean = sum / (double)sampleCount / short.MaxValue;
             AssertTrue(Math.Abs(mean) < 0.001, "aliased harmonic does not collapse into DC");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static void TestRendererBlocksDcBias()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"esrecorder-dc-block-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var source = FixedFiringPistonSourceFactory.CreateEven(
+                "dc-block-i4",
+                cylinderCount: 4,
+                bankCount: 1,
+                displacementLitres: 2.0,
+                maxRpm: 8000,
+                cylinderBankAssignments: new[] { 0, 0, 0, 0 },
+                cycleDegrees: 720,
+                layout: "inline-4",
+                firingLabel: "CANONICAL_EVEN_V1",
+                combustionClass: "petrol",
+                combustionAcousticProfile: "conventional-spark");
+
+            var output = Path.Combine(root, "dc-block.wav");
+            var measurement = EventAudioRenderer.Render(
+                source,
+                new EventRenderRequest(
+                    output,
+                    Rpm: 7200,
+                    Throttle: 100,
+                    SampleRate: 16000,
+                    LengthSeconds: 1));
+
+            AssertTrue(measurement.PeakAbsolute > 0.1, "DC blocker preserves audible engine signal");
+
+            var bytes = File.ReadAllBytes(output);
+            var sampleCount = (bytes.Length - 44) / sizeof(short);
+            var sum = 0L;
+            for (var index = 0; index < sampleCount; index++)
+                sum += BitConverter.ToInt16(bytes, 44 + (index * sizeof(short)));
+
+            var mean = sum / (double)sampleCount / short.MaxValue;
+            AssertTrue(Math.Abs(mean) < 0.005, "DC blocker keeps canonical I4 PCM mean below 0.005");
         }
         finally
         {
