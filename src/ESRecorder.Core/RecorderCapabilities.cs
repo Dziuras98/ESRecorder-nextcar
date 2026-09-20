@@ -70,6 +70,7 @@ public static class RecorderCapabilityCatalog
                     "multi-revolution-event-cycles",
                     "non-rotating-reference-cycle",
                     "electric-shaft-order-harmonics",
+                    "electric-machine-timbre-profiles",
                     "source-graph-composition",
                     "explicit-ignition-angle-table",
                     "cylinder-bank-assignment",
@@ -91,7 +92,8 @@ public static class RecorderCapabilityCatalog
                     "Native ESRecorder-nextcar event renderer. Wankel, multi-crank, two-stroke, opposed-piston, " +
                     "radial/cam-ring, axial-piston, free-piston, electric-machine, composite, explicit fixed-firing " +
                     "banked piston, split-single, non-Wankel rotary-combustion, thermal-fluid and auxiliary machines are represented by explicit event/harmonic topology. " +
-                    "Fixed-firing piston sources can additionally select named combustion acoustic profiles.")
+                    "Fixed-firing piston sources can additionally select named combustion acoustic profiles. " +
+                    "Electric-machine sources use versioned machine-type timbre profiles so distinct motor classes do not collapse to identical PCM when their pole/slot/inverter orders match.")
         ],
         Guarantees:
         [
