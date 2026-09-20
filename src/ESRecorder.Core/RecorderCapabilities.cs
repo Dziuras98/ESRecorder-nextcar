@@ -55,7 +55,8 @@ public static class RecorderCapabilityCatalog
                     "fixed-firing-piston",
                     "split-single-two-stroke",
                     "rotary-combustion",
-                    "thermal-fluid-machine"
+                    "thermal-fluid-machine",
+                    "coupled-piston-cycle"
                 ],
                 Features:
                 [
@@ -76,6 +77,8 @@ public static class RecorderCapabilityCatalog
                     "thermal-pressure-event-model",
                     "continuous-turbomachinery-harmonics",
                     "thermal-response-metadata",
+                    "coupled-primary-secondary-pressure-trains",
+                    "pneumatic-accumulator-acoustic-layer",
                     "combustion-acoustic-profiles",
                     "harmonic-mechanical-layers",
                     "deterministic-noise",

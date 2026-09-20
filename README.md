@@ -162,3 +162,15 @@ authoring textures without changing their mechanical event geometry.
 The profile contract is `nextcar-combustion-acoustic-profile-v1`; unknown
 profile ids fail closed. The tuning is an offline acoustic authoring model, not
 a thermodynamic simulation.
+
+
+## Coupled piston cycles
+
+```text
+render-coupled-piston-cycle
+```
+
+Use this path for split-cycle and five-stroke concepts with distinct
+combustion and secondary compression/expansion cylinders. The renderer keeps
+secondary pressure events separate from combustion and can add a pneumatic
+accumulator acoustic layer.

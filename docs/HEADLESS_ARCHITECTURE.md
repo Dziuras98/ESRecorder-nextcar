@@ -185,3 +185,11 @@ The firing graph remains authoritative for event timing. A named
 resonance, noise and exhaust-layer balance. This keeps EGT-style
 Otto/lean/HCCI/SPCCI/pre-chamber/RCCI variants distinct without inventing a new
 mechanical source family.
+
+
+## Coupled piston-cycle primitive
+
+Split-cycle and five-stroke engines use `coupled-piston-cycle`. Combustion and
+secondary compression/expansion pressure trains remain separate, with optional
+pneumatic-accumulator harmonics. This avoids treating non-combusting compressor
+or expansion cylinders as ordinary firing cylinders.

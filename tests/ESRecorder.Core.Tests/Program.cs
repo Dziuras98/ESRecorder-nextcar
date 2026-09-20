@@ -25,6 +25,7 @@ internal static class Program
             TestFixedFiringPistonTopology();
             TestCombustionAcousticProfiles();
             TestSplitSingleTopology();
+            TestCoupledPistonCycleTopology();
             TestSingleCrankOpocTopology();
             TestNonWankelRotaryTopology();
             TestThermalFluidTopology();
@@ -111,7 +112,8 @@ internal static class Program
             "fixed-firing-piston",
             "split-single-two-stroke",
             "rotary-combustion",
-            "thermal-fluid-machine"
+            "thermal-fluid-machine",
+            "coupled-piston-cycle"
         })
         {
             AssertTrue(
@@ -127,6 +129,8 @@ internal static class Program
             "thermal-pressure-event-model",
             "continuous-turbomachinery-harmonics",
             "thermal-response-metadata",
+            "coupled-primary-secondary-pressure-trains",
+            "pneumatic-accumulator-acoustic-layer",
             "combustion-acoustic-profiles"
         })
         {
@@ -491,6 +495,65 @@ internal static class Program
         AssertEqual("15", source.Metadata["transfer_piston_phase_degrees"], "split-single piston phase");
     }
 
+    private static void TestCoupledPistonCycleTopology()
+    {
+        var splitCycle = CoupledPistonCycleSourceFactory.Create(
+            "split-cycle-4x4",
+            cycleClass: "split-cycle",
+            combustionCylinderCount: 4,
+            secondaryCylinderCount: 4,
+            secondaryPressureEventsPerCycle: 4,
+            displacementLitres: 2.0,
+            maxRpm: 8000,
+            cycleRevolutions: 2.0,
+            secondaryPhaseDegrees: 180.0,
+            pneumaticAccumulator: false,
+            combustionClass: "petrol");
+
+        AssertEqual("coupled-piston-cycle", splitCycle.Family, "split-cycle source family");
+        AssertEqual(2, splitCycle.EventTrains.Length, "split-cycle event train count");
+        AssertEqual(4, splitCycle.EventTrains[0].EventPhases.Length, "split-cycle combustion event count");
+        AssertEqual(4, splitCycle.EventTrains[1].EventPhases.Length, "split-cycle compression event count");
+        AssertEqual("4", splitCycle.Metadata["combustion_cylinder_count"], "split-cycle combustion cylinders");
+        AssertEqual("4", splitCycle.Metadata["secondary_cylinder_count"], "split-cycle compression cylinders");
+        AssertEqual("split-cycle", splitCycle.Metadata["cycle_class"], "split-cycle class");
+        AssertEqual("false", splitCycle.Metadata["pneumatic_accumulator"], "split-cycle accumulator flag");
+
+        var airHybrid = CoupledPistonCycleSourceFactory.Create(
+            "split-cycle-4x4-air-hybrid",
+            cycleClass: "split-cycle-air-hybrid",
+            combustionCylinderCount: 4,
+            secondaryCylinderCount: 4,
+            secondaryPressureEventsPerCycle: 4,
+            displacementLitres: 2.0,
+            maxRpm: 8000,
+            cycleRevolutions: 2.0,
+            secondaryPhaseDegrees: 180.0,
+            pneumaticAccumulator: true,
+            combustionClass: "petrol");
+
+        AssertEqual(4, airHybrid.HarmonicLayers.Length, "air-hybrid accumulator layer count");
+        AssertEqual("true", airHybrid.Metadata["pneumatic_accumulator"], "air-hybrid accumulator flag");
+
+        var fiveStroke = CoupledPistonCycleSourceFactory.Create(
+            "five-stroke-2plus1",
+            cycleClass: "five-stroke",
+            combustionCylinderCount: 2,
+            secondaryCylinderCount: 1,
+            secondaryPressureEventsPerCycle: 2,
+            displacementLitres: 2.4,
+            maxRpm: 8500,
+            cycleRevolutions: 2.0,
+            secondaryPhaseDegrees: 180.0,
+            pneumaticAccumulator: false,
+            combustionClass: "petrol");
+
+        AssertEqual(2, fiveStroke.EventTrains[0].EventPhases.Length, "five-stroke combustion event count");
+        AssertEqual(2, fiveStroke.EventTrains[1].EventPhases.Length, "five-stroke expansion event count");
+        AssertEqual("1", fiveStroke.Metadata["secondary_cylinder_count"], "five-stroke expansion cylinder count");
+        AssertEqual("2", fiveStroke.Metadata["secondary_pressure_events_per_cycle"], "five-stroke expansion event metadata");
+    }
+
     private static void TestSingleCrankOpocTopology()
     {
         var source = OpposedPistonSourceFactory.Create(
@@ -731,7 +794,19 @@ internal static class Program
                     32,
                     "steam",
                     "slow-thermal")
-            };
+,
+                CoupledPistonCycleSourceFactory.Create(
+                    "render-coupled-split-cycle",
+                    "split-cycle",
+                    4,
+                    4,
+                    4,
+                    2.0,
+                    8000,
+                    2.0,
+                    180.0,
+                    false,
+                    "petrol")            };
 
             foreach (var source in sources)
             {
