@@ -382,3 +382,32 @@ CLI:
 ```text
 ESRecorder.Cli render-thermal-fluid --name steam-turbine --machine-class turbine --mechanism "two-stage steam turbine" --elements 2 --pressure-events-per-reference-revolution 0 --max-rpm 18000 --blade-lobe-order 32 --working-fluid steam --thermal-response slow-thermal --output recordings/steam-turbine --rpm 3000:48000,16000:48000 --throttle 0,100 --length 5
 ```
+
+
+## Combustion acoustic profiles v1
+
+Fixed-firing piston sources may select a named offline acoustic profile through
+`combustion_acoustic_profile`. The profile changes event gain/decay,
+resonance, broadband-noise mix, throttle response and bank-exhaust harmonic
+gain while preserving the same mechanical firing angles and bank assignment.
+
+Contract:
+
+`nextcar-combustion-acoustic-profile-v1`
+
+Current named profiles include conventional spark, lean-burn, stratified DI,
+Atkinson-like, Miller-like, pre-chamber spark, HCCI, SPCCI,
+turbulent-jet ignition, methanol spark, diesel CI, RCCI, hydrogen lean spark
+and CNG pre-chamber.
+
+These are **offline acoustic authoring textures**. They are not thermodynamic,
+knock, heat-release or emissions simulation and must not be cited as mechanical
+facts about a source vehicle.
+
+CLI example:
+
+```text
+ESRecorder.Cli render-fixed-firing-piston ... --combustion-profile turbulent-jet-ignition
+```
+
+Unknown profile ids fail closed.
