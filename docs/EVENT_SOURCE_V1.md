@@ -461,3 +461,46 @@ different machine classes from collapsing to identical authored PCM while
 preserving deterministic output and the existing explicit topology contract.
 Metadata records both `machine_timbre_profile` and
 `machine_timbre_policy = electric-machine-timbre-v1`.
+
+## Nyquist band-limiting
+
+`event-source-v1` band-limits synthesized tonal content before sampling.
+
+- harmonic layers use full gain through 80% of Nyquist;
+- a cosine roll-off reduces the layer smoothly between 80% and 100% of Nyquist;
+- layers at or above Nyquist are suppressed;
+- event-train resonance carriers use the same roll-off;
+- deterministic broadband texture remains discrete-time noise and is not
+  frequency-folded from an out-of-band oscillator.
+
+This prevents high shaft/blade/lobe orders from folding into unrelated
+low-frequency tones or DC as reference RPM rises. A regression test includes a
+harmonic that would otherwise sample exactly at the sample rate and collapse to
+a constant offset.
+
+The band-limit is an authoring/rendering safeguard. It does not claim that the
+underlying physical source stops producing ultrasonic content.
+
+
+## DC blocking and clip boundary
+
+After nonlinear limiting, `event-source-v1` applies a deterministic one-pole
+high-pass/DC-block stage with a 2 Hz cutoff before the final clip fade.
+
+The filter state is primed by one invisible repetition of the deterministic
+render block before samples are written. This prevents the filter's startup
+transient from becoming part of the authored clip. The final fade is applied
+after DC blocking, so the first and last PCM samples remain zero.
+
+The cutoff is intentionally far below the normal audible engine band. Its
+purpose is to remove non-acoustic pressure/DC bias from asymmetric event
+envelopes without materially changing low-order engine cadence.
+
+A regression renders a canonical inline-four at 7200 RPM / full throttle and
+requires:
+
+- non-zero audible output;
+- absolute PCM mean below 0.005;
+- deterministic output for identical inputs.
+
+This stage complements, rather than replaces, Nyquist band-limiting.

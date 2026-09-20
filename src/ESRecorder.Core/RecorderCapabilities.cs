@@ -86,6 +86,8 @@ public static class RecorderCapabilityCatalog
                     "combustion-acoustic-profiles",
                     "harmonic-mechanical-layers",
                     "deterministic-noise",
+                    "nyquist-bandlimited-harmonics",
+                    "dc-blocked-pcm",
                     "cross-platform-pcm16-wav-render"
                 ],
                 Notes:

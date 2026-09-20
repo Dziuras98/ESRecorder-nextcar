@@ -32,6 +32,8 @@ internal static class Program
             TestThermalFluidTopology();
             TestThermalCompoundComposition();
             TestAuxiliaryMachineTopology();
+            TestRendererBandLimitsAliasedHarmonics();
+            TestRendererBlocksDcBias();
             TestAcceptedFamilyRenderers();
             TestAdvancedTopologyRenderers();
             TestNewTopologyRenderers();
@@ -131,6 +133,8 @@ internal static class Program
             "thermal-pressure-event-model",
             "continuous-turbomachinery-harmonics",
             "thermal-response-metadata",
+            "nyquist-bandlimited-harmonics",
+            "dc-blocked-pcm",
             "coupled-primary-secondary-pressure-trains",
             "pneumatic-accumulator-acoustic-layer",
             "combustion-acoustic-profiles",
@@ -856,6 +860,119 @@ internal static class Program
                 AssertTrue(measurement.PeakAbsolute > 0.005, $"{source.Id} peak non-zero");
                 AssertTrue(measurement.RootMeanSquare > 0.0005, $"{source.Id} RMS non-zero");
             }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static void TestRendererBandLimitsAliasedHarmonics()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"esrecorder-antialias-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var source = new AcousticEventSourceDefinition
+            {
+                Id = "antialias-regression",
+                Family = "electric-machine",
+                MasterGain = 0.8,
+                HarmonicLayers =
+                [
+                    new HarmonicLayerDefinition
+                    {
+                        Name = "audible-reference",
+                        ShaftRatio = 1.0,
+                        Order = 2.0,
+                        Gain = 0.10,
+                        PhaseRadians = 0.0,
+                        ThrottleResponse = 1.0
+                    },
+                    new HarmonicLayerDefinition
+                    {
+                        Name = "would-alias-to-dc-without-bandlimit",
+                        ShaftRatio = 1.0,
+                        Order = 80.0,
+                        Gain = 0.80,
+                        PhaseRadians = Math.PI / 2.0,
+                        ThrottleResponse = 1.0
+                    }
+                ]
+            };
+
+            var output = Path.Combine(root, "antialias.wav");
+            var measurement = EventAudioRenderer.Render(
+                source,
+                new EventRenderRequest(
+                    output,
+                    Rpm: 6000,
+                    Throttle: 100,
+                    SampleRate: 8000,
+                    LengthSeconds: 1));
+
+            AssertTrue(File.Exists(output), "anti-alias regression WAV exists");
+            AssertTrue(measurement.PeakAbsolute > 0.01, "audible reference harmonic remains");
+            AssertTrue(measurement.PeakAbsolute < 0.20, "aliased high-order harmonic is suppressed");
+
+            var bytes = File.ReadAllBytes(output);
+            var sampleCount = (bytes.Length - 44) / sizeof(short);
+            var sum = 0L;
+            for (var index = 0; index < sampleCount; index++)
+                sum += BitConverter.ToInt16(bytes, 44 + (index * sizeof(short)));
+
+            var mean = sum / (double)sampleCount / short.MaxValue;
+            AssertTrue(Math.Abs(mean) < 0.001, "aliased harmonic does not collapse into DC");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static void TestRendererBlocksDcBias()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"esrecorder-dc-block-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var source = FixedFiringPistonSourceFactory.CreateEven(
+                "dc-block-i4",
+                cylinderCount: 4,
+                bankCount: 1,
+                displacementLitres: 2.0,
+                maxRpm: 8000,
+                cylinderBankAssignments: new[] { 0, 0, 0, 0 },
+                cycleDegrees: 720,
+                layout: "inline-4",
+                firingLabel: "CANONICAL_EVEN_V1",
+                combustionClass: "petrol",
+                combustionAcousticProfile: "conventional-spark");
+
+            var output = Path.Combine(root, "dc-block.wav");
+            var measurement = EventAudioRenderer.Render(
+                source,
+                new EventRenderRequest(
+                    output,
+                    Rpm: 7200,
+                    Throttle: 100,
+                    SampleRate: 16000,
+                    LengthSeconds: 1));
+
+            AssertTrue(measurement.PeakAbsolute > 0.1, "DC blocker preserves audible engine signal");
+
+            var bytes = File.ReadAllBytes(output);
+            var sampleCount = (bytes.Length - 44) / sizeof(short);
+            var sum = 0L;
+            for (var index = 0; index < sampleCount; index++)
+                sum += BitConverter.ToInt16(bytes, 44 + (index * sizeof(short)));
+
+            var mean = sum / (double)sampleCount / short.MaxValue;
+            AssertTrue(Math.Abs(mean) < 0.005, "DC blocker keeps canonical I4 PCM mean below 0.005");
         }
         finally
         {
