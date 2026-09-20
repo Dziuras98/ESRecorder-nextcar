@@ -446,3 +446,18 @@ This supports the current PR #193 concepts:
 Phase values used by Nextcar are offline acoustic-authoring profiles unless the
 catalog explicitly provides mechanical phasing. They are not claims of exact
 crank geometry or thermodynamic timing.
+
+
+## Electric-machine timbre v1
+
+The electric-machine factory retains pole-pair, slot and inverter shaft-order
+harmonics and adds a versioned machine-type character layer. The selected
+`machine_timbre_profile` adjusts the relative gains and character order for
+switched-reluctance, synchronous-reluctance, induction, wound-field synchronous,
+axial-flux permanent-magnet and transverse-flux sources.
+
+The policy is deliberately acoustic rather than electromagnetic: it prevents
+different machine classes from collapsing to identical authored PCM while
+preserving deterministic output and the existing explicit topology contract.
+Metadata records both `machine_timbre_profile` and
+`machine_timbre_policy = electric-machine-timbre-v1`.
