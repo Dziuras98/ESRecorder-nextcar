@@ -446,3 +446,23 @@ This supports the current PR #193 concepts:
 Phase values used by Nextcar are offline acoustic-authoring profiles unless the
 catalog explicitly provides mechanical phasing. They are not claims of exact
 crank geometry or thermodynamic timing.
+
+
+## Nyquist band-limiting
+
+`event-source-v1` band-limits synthesized tonal content before sampling.
+
+- harmonic layers use full gain through 80% of Nyquist;
+- a cosine roll-off reduces the layer smoothly between 80% and 100% of Nyquist;
+- layers at or above Nyquist are suppressed;
+- event-train resonance carriers use the same roll-off;
+- deterministic broadband texture remains discrete-time noise and is not
+  frequency-folded from an out-of-band oscillator.
+
+This prevents high shaft/blade/lobe orders from folding into unrelated
+low-frequency tones or DC as reference RPM rises. A regression test includes a
+harmonic that would otherwise sample exactly at the sample rate and collapse to
+a constant offset.
+
+The band-limit is an authoring/rendering safeguard. It does not claim that the
+underlying physical source stops producing ultrasonic content.
