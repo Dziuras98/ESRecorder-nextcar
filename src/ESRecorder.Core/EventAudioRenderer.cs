@@ -49,7 +49,11 @@ public static class EventAudioRenderer
 
                 var response = ThrottleScale(throttle, train.ThrottleResponse);
                 var resonanceHz = train.ResonanceBaseHz + (shaftHz * train.ResonanceOrder);
-                var carrier = Math.Sin((2.0 * Math.PI * resonanceHz * time) + (trainIndex * 0.371));
+                var carrierGain = BandLimitGain(resonanceHz, request.SampleRate);
+                var carrier = carrierGain == 0.0
+                    ? 0.0
+                    : carrierGain * Math.Sin(
+                        (2.0 * Math.PI * resonanceHz * time) + (trainIndex * 0.371));
                 var noise = DeterministicNoise(index, seed + (trainIndex * 7919));
                 var texture = (carrier * (1.0 - train.NoiseMix)) + (noise * train.NoiseMix);
                 value += train.Gain * response * envelope * texture;
@@ -58,8 +62,12 @@ public static class EventAudioRenderer
             foreach (var layer in source.HarmonicLayers)
             {
                 var frequency = rpmHz * layer.ShaftRatio * layer.Order;
+                var bandLimitGain = BandLimitGain(frequency, request.SampleRate);
+                if (bandLimitGain == 0.0)
+                    continue;
+
                 var response = ThrottleScale(throttle, layer.ThrottleResponse);
-                value += layer.Gain * response *
+                value += layer.Gain * response * bandLimitGain *
                     Math.Sin((2.0 * Math.PI * frequency * time) + layer.PhaseRadians);
             }
 
@@ -123,6 +131,25 @@ public static class EventAudioRenderer
     {
         var shaped = response == 0.0 ? 1.0 : Math.Pow(throttle, response);
         return 0.2 + (0.8 * shaped);
+    }
+
+    private static double BandLimitGain(double frequency, int sampleRate)
+    {
+        if (!double.IsFinite(frequency) || frequency <= 0.0)
+            return 0.0;
+
+        var nyquist = sampleRate * 0.5;
+        if (frequency >= nyquist)
+            return 0.0;
+
+        // Start a cosine roll-off below Nyquist so high-order shaft harmonics
+        // do not fold back into unrelated low-frequency tones as RPM rises.
+        var rolloffStart = nyquist * 0.80;
+        if (frequency <= rolloffStart)
+            return 1.0;
+
+        var position = (frequency - rolloffStart) / (nyquist - rolloffStart);
+        return 0.5 * (1.0 + Math.Cos(Math.PI * position));
     }
 
     private static double Fractional(double value) => value - Math.Floor(value);
