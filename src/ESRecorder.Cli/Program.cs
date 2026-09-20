@@ -52,6 +52,8 @@ internal static class Program
                     return RenderFixedFiringPiston(options, cancellation.Token);
                 case "render-split-single":
                     return RenderSplitSingle(options, cancellation.Token);
+                case "render-coupled-piston-cycle":
+                    return RenderCoupledPistonCycle(options, cancellation.Token);
                 case "render-rotary-combustion":
                     return RenderRotaryCombustion(options, cancellation.Token);
                 case "render-thermal-fluid":
@@ -261,6 +263,46 @@ internal static class Program
                 Get(options, "transfer-piston-phase-degrees", "15"),
                 "transfer-piston-phase-degrees"),
             Get(options, "layout", "split-single"),
+            Get(options, "combustion", "petrol"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderCoupledPistonCycle(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = CoupledPistonCycleSourceFactory.Create(
+            Get(options, "name", "coupled-piston-cycle"),
+            GetRequired(options, "cycle-class"),
+            ParseRangeInt(
+                GetRequired(options, "combustion-cylinders"),
+                "combustion-cylinders",
+                1,
+                128),
+            ParseRangeInt(
+                GetRequired(options, "secondary-cylinders"),
+                "secondary-cylinders",
+                1,
+                128),
+            ParseRangeInt(
+                GetRequired(options, "secondary-events-per-cycle"),
+                "secondary-events-per-cycle",
+                1,
+                256),
+            ParsePositiveDouble(GetRequired(options, "displacement"), "displacement"),
+            ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 200, 30000),
+            ParsePositiveDouble(
+                Get(options, "cycle-revolutions", "2"),
+                "cycle-revolutions"),
+            ParseFiniteDouble(
+                Get(options, "secondary-phase-degrees", "180"),
+                "secondary-phase-degrees"),
+            ParseRangeInt(
+                Get(options, "pneumatic-accumulator", "0"),
+                "pneumatic-accumulator",
+                0,
+                1) == 1,
             Get(options, "combustion", "petrol"));
 
         return RenderEventBank(source, options, cancellationToken);
@@ -767,6 +809,23 @@ internal static class Program
                 --thermal-response "slow-thermal"
                 --output recordings/steam-turbine
                 --rpm 3000:48000,16000:48000
+                --throttle 0,100
+                --length 5
+
+            Render a coupled piston-cycle source:
+              ESRecorder.Cli render-coupled-piston-cycle
+                --name split-cycle-4x4
+                --cycle-class split-cycle
+                --combustion-cylinders 4
+                --secondary-cylinders 4
+                --secondary-events-per-cycle 4
+                --displacement 2.0
+                --max-rpm 8000
+                --cycle-revolutions 2
+                --secondary-phase-degrees 180
+                --pneumatic-accumulator 0
+                --output recordings/split-cycle-4x4
+                --rpm 1500:48000,7000:48000
                 --throttle 0,100
                 --length 5
 
