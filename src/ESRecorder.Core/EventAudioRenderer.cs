@@ -175,9 +175,18 @@ public static class EventAudioRenderer
         var coefficient = Math.Exp((-2.0 * Math.PI * cutoffHz) / sampleRate);
         var previousInput = samples[0];
         var previousOutput = 0.0;
-        samples[0] = 0.0;
 
-        for (var index = 1; index < samples.Length; index++)
+        // Prime the one-pole state with one deterministic block repetition.
+        // This removes the filter startup transient from the authored clip while
+        // keeping the actual render deterministic for identical input.
+        foreach (var input in samples)
+        {
+            var output = input - previousInput + (coefficient * previousOutput);
+            previousInput = input;
+            previousOutput = output;
+        }
+
+        for (var index = 0; index < samples.Length; index++)
         {
             var input = samples[index];
             var output = input - previousInput + (coefficient * previousOutput);
