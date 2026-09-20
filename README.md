@@ -174,3 +174,22 @@ Use this path for split-cycle and five-stroke concepts with distinct
 combustion and secondary compression/expansion cylinders. The renderer keeps
 secondary pressure events separate from combustion and can add a pneumatic
 accumulator acoustic layer.
+
+
+## Electric-machine timbre profiles
+
+Electric sources use versioned `electric-machine-timbre-v1` acoustic profiles.
+`machine_type` now affects the relative fundamental, second-harmonic, slot,
+inverter and machine-character orders. The initial named profiles distinguish:
+
+- switched reluctance;
+- synchronous reluctance;
+- induction;
+- wound-field synchronous;
+- axial-flux permanent-magnet;
+- transverse-flux;
+- generic/permanent-magnet fallback.
+
+These are deterministic offline authoring identities, not finite-element
+electromagnetic models. Two machine types with otherwise identical pole/slot/
+inverter orders must not collapse to bit-identical PCM.
