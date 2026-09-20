@@ -54,6 +54,8 @@ internal static class Program
                     return RenderSplitSingle(options, cancellation.Token);
                 case "render-coupled-piston-cycle":
                     return RenderCoupledPistonCycle(options, cancellation.Token);
+                case "render-auxiliary-machine":
+                    return RenderAuxiliaryMachine(options, cancellation.Token);
                 case "render-rotary-combustion":
                     return RenderRotaryCombustion(options, cancellation.Token);
                 case "render-thermal-fluid":
@@ -304,6 +306,24 @@ internal static class Program
                 0,
                 1) == 1,
             Get(options, "combustion", "petrol"));
+
+        return RenderEventBank(source, options, cancellationToken);
+    }
+
+    private static int RenderAuxiliaryMachine(
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var source = AuxiliaryMachineSourceFactory.Create(
+            Get(options, "name", "auxiliary-machine"),
+            GetRequired(options, "machine-class"),
+            ParseRangeInt(GetRequired(options, "elements"), "elements", 1, 256),
+            ParseRangeInt(GetRequired(options, "max-rpm"), "max-rpm", 100, 200000),
+            ParsePositiveDouble(GetRequired(options, "primary-order"), "primary-order"),
+            ParseNonNegativeDouble(
+                Get(options, "ripple-events-per-revolution", "0"),
+                "ripple-events-per-revolution"),
+            ParseRangeDouble(Get(options, "noise-mix", "0.08"), "noise-mix", 0.0, 1.0));
 
         return RenderEventBank(source, options, cancellationToken);
     }
@@ -688,6 +708,23 @@ internal static class Program
         return result;
     }
 
+    private static double ParseRangeDouble(
+        string value,
+        string name,
+        double minimum,
+        double maximum)
+    {
+        if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result) ||
+            !double.IsFinite(result) ||
+            result < minimum ||
+            result > maximum)
+        {
+            throw new ArgumentException(
+                $"--{name} must be a finite number between {minimum} and {maximum}.");
+        }
+        return result;
+    }
+
     private static float ParseFloat(string value, string name)
     {
         if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
@@ -826,6 +863,19 @@ internal static class Program
                 --pneumatic-accumulator 0
                 --output recordings/split-cycle-4x4
                 --rpm 1500:48000,7000:48000
+                --throttle 0,100
+                --length 5
+
+            Render an auxiliary flywheel/hydraulic source:
+              ESRecorder.Cli render-auxiliary-machine
+                --name flywheel-kers
+                --machine-class flywheel
+                --elements 1
+                --max-rpm 30000
+                --primary-order 1
+                --ripple-events-per-revolution 0
+                --output recordings/flywheel-kers
+                --rpm 3000:48000,24000:48000
                 --throttle 0,100
                 --length 5
 

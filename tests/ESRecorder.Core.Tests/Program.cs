@@ -30,6 +30,7 @@ internal static class Program
             TestNonWankelRotaryTopology();
             TestThermalFluidTopology();
             TestThermalCompoundComposition();
+            TestAuxiliaryMachineTopology();
             TestAcceptedFamilyRenderers();
             TestAdvancedTopologyRenderers();
             TestNewTopologyRenderers();
@@ -720,6 +721,65 @@ internal static class Program
         AssertTrue(
             composite.Metadata["component_families"].Contains("thermal-fluid-machine", StringComparison.Ordinal),
             "thermal compound contains turbine child");
+    }
+
+    private static void TestAuxiliaryMachineTopology()
+    {
+        var flywheel = AuxiliaryMachineSourceFactory.Create(
+            "flywheel-kers",
+            "flywheel",
+            workingElementCount: 1,
+            maxRpm: 30000,
+            primaryOrder: 1.0,
+            rippleEventsPerRevolution: 0.0,
+            noiseMix: 0.02);
+
+        AssertEqual("auxiliary-machine", flywheel.Family, "flywheel auxiliary family");
+        AssertEqual(0, flywheel.EventTrains.Length, "flywheel has no pulse event train");
+        AssertEqual(3, flywheel.HarmonicLayers.Length, "flywheel harmonic layer count");
+        AssertEqual("flywheel", flywheel.Metadata["machine_class"], "flywheel class metadata");
+
+        var hydraulic = AuxiliaryMachineSourceFactory.Create(
+            "hydraulic-assist",
+            "hydraulic-machine",
+            workingElementCount: 7,
+            maxRpm: 6000,
+            primaryOrder: 7.0,
+            rippleEventsPerRevolution: 7.0,
+            noiseMix: 0.20);
+
+        AssertEqual(1, hydraulic.EventTrains.Length, "hydraulic ripple event train count");
+        AssertEqual(7, hydraulic.EventTrains[0].EventPhases.Length, "hydraulic ripple element count");
+        AssertEqual(
+            "7",
+            hydraulic.Metadata["ripple_events_per_revolution"],
+            "hydraulic ripple event metadata");
+
+        var root = Path.Combine(Path.GetTempPath(), $"esrecorder-aux-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            foreach (var source in new[] { flywheel, hydraulic })
+            {
+                var output = Path.Combine(root, $"{source.Id}.wav");
+                var measurement = EventAudioRenderer.Render(
+                    source,
+                    new EventRenderRequest(
+                        output,
+                        Rpm: 4000,
+                        Throttle: 75,
+                        SampleRate: 16000,
+                        LengthSeconds: 1));
+                AssertTrue(File.Exists(output), $"{source.Id} WAV exists");
+                AssertTrue(measurement.PeakAbsolute > 0.005, $"{source.Id} peak non-zero");
+                AssertTrue(measurement.RootMeanSquare > 0.0005, $"{source.Id} RMS non-zero");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void TestAcceptedFamilyRenderers()
