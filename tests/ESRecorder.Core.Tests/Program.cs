@@ -131,6 +131,7 @@ internal static class Program
             "thermal-pressure-event-model",
             "continuous-turbomachinery-harmonics",
             "thermal-response-metadata",
+            "nyquist-bandlimited-harmonics",
             "coupled-primary-secondary-pressure-trains",
             "pneumatic-accumulator-acoustic-layer",
             "combustion-acoustic-profiles"
