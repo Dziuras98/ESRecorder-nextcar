@@ -21,6 +21,7 @@ internal static class Program
             TestAxialPistonTopology();
             TestFreePistonTopology();
             TestElectricMachineTopology();
+            TestElectricMachineTypeTimbres();
             TestCompositeTopology();
             TestFixedFiringPistonTopology();
             TestCombustionAcousticProfiles();
@@ -132,7 +133,8 @@ internal static class Program
             "thermal-response-metadata",
             "coupled-primary-secondary-pressure-trains",
             "pneumatic-accumulator-acoustic-layer",
-            "combustion-acoustic-profiles"
+            "combustion-acoustic-profiles",
+            "electric-machine-timbre-profiles"
         })
         {
             AssertTrue(
@@ -308,13 +310,93 @@ internal static class Program
 
         AssertEqual("electric-machine", source.Family, "electric-machine family");
         AssertEqual(0, source.EventTrains.Length, "electric-machine has no combustion trains");
-        AssertEqual(8, source.HarmonicLayers.Length, "electric-machine harmonic layer count");
+        AssertEqual(10, source.HarmonicLayers.Length, "electric-machine harmonic layer count");
         AssertEqual("2", source.Metadata["machine_count"], "electric-machine count metadata");
         AssertEqual("4", source.Metadata["electrical_fundamental_order"], "electric fundamental order metadata");
+        AssertEqual("permanent-magnet-v1", source.Metadata["machine_timbre_profile"], "electric timbre profile metadata");
+        AssertEqual("electric-machine-timbre-v1", source.Metadata["machine_timbre_policy"], "electric timbre policy metadata");
         AssertEqual(
             "deterministic_golden_angle_per_machine",
             source.Metadata["acoustic_phase_policy"],
             "electric multi-machine phase policy");
+    }
+
+    private static void TestElectricMachineTypeTimbres()
+    {
+        var switchedReluctance = ElectricMachineSourceFactory.Create(
+            "sr-machine",
+            polePairs: 4,
+            maxRpm: 18000,
+            machineCount: 1,
+            machineType: "switched-reluctance motor",
+            slotOrder: 24,
+            inverterOrder: 48);
+        var synchronousReluctance = ElectricMachineSourceFactory.Create(
+            "synrm-machine",
+            polePairs: 4,
+            maxRpm: 18000,
+            machineCount: 1,
+            machineType: "synchronous-reluctance motor",
+            slotOrder: 24,
+            inverterOrder: 48);
+
+        AssertEqual(
+            "switched-reluctance-v1",
+            switchedReluctance.Metadata["machine_timbre_profile"],
+            "SR timbre profile");
+        AssertEqual(
+            "synchronous-reluctance-v1",
+            synchronousReluctance.Metadata["machine_timbre_profile"],
+            "SynRM timbre profile");
+        AssertTrue(
+            switchedReluctance.HarmonicLayers.Length == 5 &&
+            synchronousReluctance.HarmonicLayers.Length == 5,
+            "single electric machine exposes five harmonic layers");
+        AssertTrue(
+            switchedReluctance.HarmonicLayers
+                .Zip(synchronousReluctance.HarmonicLayers)
+                .Any(pair =>
+                    Math.Abs(pair.First.Order - pair.Second.Order) > 1e-9 ||
+                    Math.Abs(pair.First.Gain - pair.Second.Gain) > 1e-9),
+            "SR and SynRM timbre layers differ");
+
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"esrecorder-electric-timbre-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var srPath = Path.Combine(root, "sr.wav");
+            var synrmPath = Path.Combine(root, "synrm.wav");
+            _ = EventAudioRenderer.Render(
+                switchedReluctance,
+                new EventRenderRequest(
+                    srPath,
+                    Rpm: 9000,
+                    Throttle: 100,
+                    SampleRate: 16000,
+                    LengthSeconds: 1));
+            _ = EventAudioRenderer.Render(
+                synchronousReluctance,
+                new EventRenderRequest(
+                    synrmPath,
+                    Rpm: 9000,
+                    Throttle: 100,
+                    SampleRate: 16000,
+                    LengthSeconds: 1));
+
+            var srBytes = File.ReadAllBytes(srPath);
+            var synrmBytes = File.ReadAllBytes(synrmPath);
+            AssertTrue(
+                !srBytes.SequenceEqual(synrmBytes),
+                "SR and SynRM must not render bit-identical PCM");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void TestCompositeTopology()
